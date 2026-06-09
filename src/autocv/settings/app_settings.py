@@ -19,6 +19,12 @@ class AppSettings:
     github_owner: str
     github_project_sync_enabled: bool
     project_context_cache_dir: Path
+    local_ai_model_repo: str
+    local_ai_model_name: str
+    local_ai_default_quantization: str
+    local_ai_quality_quantization: str
+    local_ai_runner: str
+    local_ai_base_url: str
 
     @classmethod
     def load(cls) -> "AppSettings":
@@ -39,4 +45,10 @@ class AppSettings:
             github_owner="VicoD3X",
             github_project_sync_enabled=False,
             project_context_cache_dir=data_dir / "project_context",
+            local_ai_model_repo="Qwen/Qwen3-14B-GGUF",
+            local_ai_model_name="Qwen3-14B",
+            local_ai_default_quantization="Q4_K_M",
+            local_ai_quality_quantization="Q5_K_M",
+            local_ai_runner="llama.cpp",
+            local_ai_base_url="http://127.0.0.1:8080/v1",
         )

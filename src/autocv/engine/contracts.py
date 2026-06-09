@@ -14,9 +14,9 @@ class EngineResponse:
     text: str
     source: str
     available: bool
+    model: str = ""
 
 
 class AutoCvEngine(Protocol):
     def generate(self, request: EngineRequest) -> EngineResponse:
         """Generate a response for an Auto-CV task."""
-

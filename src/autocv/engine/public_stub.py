@@ -1,4 +1,5 @@
 from autocv.engine.contracts import EngineRequest, EngineResponse
+from autocv.ai import QWEN3_14B_Q4_PROFILE
 
 
 class PublicEngineStub:
@@ -10,5 +11,5 @@ class PublicEngineStub:
             ),
             source="public_stub",
             available=False,
+            model=QWEN3_14B_Q4_PROFILE.default_model_ref,
         )
-

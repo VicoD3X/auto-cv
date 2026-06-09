@@ -55,6 +55,18 @@ L'IA locale doit faire des ajustements legers :
 - conserver un ton professionnel francais ;
 - ne pas inventer d'experience.
 
+Modele V1 :
+
+```text
+Qwen3-14B GGUF Q4_K_M
+```
+
+Option qualite apres validation locale :
+
+```text
+Qwen3-14B GGUF Q5_K_M
+```
+
 Le CV est copie et renomme proprement dans le dossier `Result`, mais son contenu n'est pas modifie par IA.
 
 La lettre adaptee est sauvegardee dans `Result` avec un nom explicite.

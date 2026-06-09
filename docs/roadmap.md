@@ -22,7 +22,7 @@
 - Ajouter la gestion des offres d'emploi.
 - Ajouter une premiere gestion legere des opportunites freelance.
 - Ajouter la synchronisation locale du contexte projets GitHub.
-- Ajouter l'adaptation locale IA des lettres et messages freelance via moteur prive.
+- Ajouter l'adaptation locale IA des lettres et messages freelance via Qwen3-14B Q4_K_M.
 - Ajouter la conception IA locale de l'objet et du corps de mail.
 - Ajouter la conversion DOCX/PDF et XLSX/PDF via adaptateurs locaux.
 - Ajouter les fiches d'offres.

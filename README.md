@@ -95,6 +95,7 @@ docs/
   concept.md
   data-model.md
   language-policy.md
+  local-ai.md
   roadmap.md
   v1-scope.md
 src/autocv/

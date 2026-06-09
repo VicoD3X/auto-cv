@@ -7,6 +7,7 @@
 - Added workspace bootstrap with source document validation.
 - Added V1 use cases for creating job and freelance drafts from generic documents.
 - Added local result directory, smart document naming, and mail draft contracts.
+- Added Qwen3-14B Q4_K_M local AI profile with Q5_K_M quality option.
 - Added tests for the V1 data foundation.
 
 ## 0.1.0 - Foundation

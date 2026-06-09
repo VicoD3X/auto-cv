@@ -137,6 +137,26 @@ The V1 can delegate mail drafting to the private local AI engine:
 
 The public repository exposes the mail draft contract. The private engine owns the prompt and generation details.
 
+## Local AI Model
+
+The V1 targets Qwen3-14B GGUF through a local llama.cpp-compatible runner.
+
+Default model reference:
+
+```text
+Qwen/Qwen3-14B-GGUF:Q4_K_M
+```
+
+Quality option:
+
+```text
+Qwen/Qwen3-14B-GGUF:Q5_K_M
+```
+
+The model is used for cover letter adaptation, freelance proposal drafting, and mail subject/body drafting. It is not used to modify the CV content in V1.
+
+See `docs/local-ai.md` for the dedicated local AI profile.
+
 ## Document Format Conversion
 
 The V1 includes a document conversion layer for:
@@ -256,7 +276,7 @@ AiService
   +-- hybrid_service
 ```
 
-This avoids locking the project to one model too early. Gemma, DeepSeek, or other local models can be benchmarked later through a local runner such as Ollama or llama.cpp.
+The V1 uses Qwen3-14B GGUF as the selected local model. The adapter boundary remains useful so Q4_K_M and Q5_K_M can be switched cleanly, and so another local model can be benchmarked later if needed.
 
 ## Data Storage
 

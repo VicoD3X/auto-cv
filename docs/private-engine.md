@@ -23,6 +23,7 @@ The public repository can contain:
 The private engine should contain:
 
 - local prompts;
+- local Qwen3 runner implementation;
 - personal matching rules;
 - ranking and scoring heuristics;
 - local LLM experiments;

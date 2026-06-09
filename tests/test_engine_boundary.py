@@ -13,4 +13,5 @@ def test_public_engine_falls_back_to_stub_when_private_engine_is_absent() -> Non
 
     assert response.available is False
     assert response.source == "public_stub"
+    assert response.model == "Qwen/Qwen3-14B-GGUF:Q4_K_M"
     assert "moteur privé" in response.text

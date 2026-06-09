@@ -17,3 +17,8 @@ def test_runtime_starts_offline_by_default() -> None:
     assert runtime.settings.generic_cover_letter_filename == "Lettre_motivation_Victor_Aubry.docx"
     assert runtime.settings.github_owner == "VicoD3X"
     assert runtime.settings.github_project_sync_enabled is False
+    assert runtime.settings.local_ai_model_repo == "Qwen/Qwen3-14B-GGUF"
+    assert runtime.settings.local_ai_model_name == "Qwen3-14B"
+    assert runtime.settings.local_ai_default_quantization == "Q4_K_M"
+    assert runtime.settings.local_ai_quality_quantization == "Q5_K_M"
+    assert runtime.settings.local_ai_runner == "llama.cpp"
