@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import os
 
 from autocv.i18n.fr_fr import APP_LABELS
 from autocv.settings.app_settings import AppSettings
@@ -10,6 +11,15 @@ class AppRuntime:
     settings: AppSettings
 
     def run(self) -> None:
+        if os.environ.get("AUTOCV_CONSOLE_ONLY") == "1":
+            self._run_console()
+            return
+
+        from autocv.ui.main_window import run_desktop_app
+
+        run_desktop_app(self.settings)
+
+    def _run_console(self) -> None:
         bootstrap_result = BootstrapWorkspace(self.settings).run()
         source_status = "source prête" if bootstrap_result.document_source_ready else "source manquante"
 
