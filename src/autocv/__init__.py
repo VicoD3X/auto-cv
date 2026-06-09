@@ -1,0 +1,2 @@
+"""Auto-CV desktop application."""
+

@@ -1,0 +1,39 @@
+[project]
+name = "auto-cv"
+version = "0.1.0"
+description = "Personal local-first Windows PC tool for job application automation."
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.7",
+    "pyside6>=6.7",
+    "sqlalchemy>=2.0",
+    "httpx>=0.27",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.2",
+    "ruff>=0.5",
+]
+remote = [
+    "fastapi>=0.115",
+    "uvicorn>=0.30",
+]
+
+[project.scripts]
+autocv = "autocv.app.main:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/autocv"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+asyncio_default_fixture_loop_scope = "function"
