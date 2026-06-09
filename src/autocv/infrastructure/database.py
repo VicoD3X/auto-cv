@@ -36,6 +36,7 @@ CREATE TABLE IF NOT EXISTS application_records (
     opportunity_id TEXT NOT NULL,
     status TEXT NOT NULL,
     cv_path TEXT NOT NULL,
+    cv_output_path TEXT NOT NULL,
     cover_letter_source_path TEXT NOT NULL,
     cover_letter_output_path TEXT NOT NULL,
     export_dir TEXT NOT NULL,
@@ -65,6 +66,7 @@ class LocalDatabase:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         with self.connection() as connection:
             connection.executescript(SCHEMA)
+            self._ensure_application_record_columns(connection)
 
     @contextmanager
     def connection(self) -> Iterator[sqlite3.Connection]:
@@ -80,3 +82,13 @@ class LocalDatabase:
         finally:
             connection.close()
 
+    @staticmethod
+    def _ensure_application_record_columns(connection: sqlite3.Connection) -> None:
+        columns = {
+            row["name"]
+            for row in connection.execute("PRAGMA table_info(application_records)").fetchall()
+        }
+        if "cv_output_path" not in columns:
+            connection.execute(
+                "ALTER TABLE application_records ADD COLUMN cv_output_path TEXT NOT NULL DEFAULT ''"
+            )

@@ -15,11 +15,12 @@ def test_application_record_links_to_opportunity_and_source_documents() -> None:
         opportunity_type=OpportunityType.JOB,
         opportunity_id="offer-1",
         cv_path="cv.pdf",
+        cv_output_path="result/cv.pdf",
         cover_letter_source_path="lettre.docx",
     )
 
     assert record.opportunity_type == OpportunityType.JOB
     assert record.status == ApplicationStatus.DRAFT
     assert record.cv_path == "cv.pdf"
+    assert record.cv_output_path == "result/cv.pdf"
     assert record.cover_letter_source_path == "lettre.docx"
-

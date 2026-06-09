@@ -1,5 +1,7 @@
 from dataclasses import dataclass
+from pathlib import Path
 
+from autocv.documents.naming import DocumentKind, build_document_filename, build_result_path
 from autocv.documents.source import DocumentSource
 from autocv.domain import ApplicationRecord, FreelanceOpportunity, JobOffer, OpportunityType
 from autocv.infrastructure import (
@@ -27,8 +29,14 @@ class FreelanceOpportunityDraft:
 
 
 class V1ApplicationService:
-    def __init__(self, database: LocalDatabase, document_source: DocumentSource) -> None:
+    def __init__(
+        self,
+        database: LocalDatabase,
+        document_source: DocumentSource,
+        result_dir: Path | None = None,
+    ) -> None:
         self.document_source = document_source
+        self.result_dir = result_dir
         self.job_offers = JobOfferRepository(database)
         self.freelance_opportunities = FreelanceOpportunityRepository(database)
         self.applications = ApplicationRecordRepository(database)
@@ -57,7 +65,22 @@ class V1ApplicationService:
             opportunity_type=OpportunityType.JOB,
             opportunity_id=offer.id,
             cv_path=str(self.document_source.cv_path),
+            cv_output_path=self._build_output_path(
+                kind=DocumentKind.CV,
+                target_name=company,
+                role_or_mission=title,
+                date=offer.created_at[:10],
+                extension="pdf",
+            ),
             cover_letter_source_path=str(self.document_source.cover_letter_path),
+            cover_letter_output_path=self._build_output_path(
+                kind=DocumentKind.COVER_LETTER,
+                target_name=company,
+                role_or_mission=title,
+                date=offer.created_at[:10],
+                extension="docx",
+            ),
+            export_dir=str(self.result_dir) if self.result_dir else "",
         )
 
         self.job_offers.add(offer)
@@ -89,7 +112,22 @@ class V1ApplicationService:
             opportunity_type=OpportunityType.FREELANCE,
             opportunity_id=opportunity.id,
             cv_path=str(self.document_source.cv_path),
+            cv_output_path=self._build_output_path(
+                kind=DocumentKind.CV,
+                target_name=client,
+                role_or_mission=mission_type,
+                date=opportunity.created_at[:10],
+                extension="pdf",
+            ),
             cover_letter_source_path=str(self.document_source.cover_letter_path),
+            cover_letter_output_path=self._build_output_path(
+                kind=DocumentKind.FREELANCE_PROPOSAL,
+                target_name=client,
+                role_or_mission=mission_type,
+                date=opportunity.created_at[:10],
+                extension="docx",
+            ),
+            export_dir=str(self.result_dir) if self.result_dir else "",
         )
 
         self.freelance_opportunities.add(opportunity)
@@ -103,3 +141,23 @@ class V1ApplicationService:
                 "Le dossier GENERIQUE PRO doit contenir le CV et la lettre générique."
             )
 
+    def _build_output_path(
+        self,
+        *,
+        kind: DocumentKind,
+        target_name: str,
+        role_or_mission: str,
+        date: str,
+        extension: str,
+    ) -> str:
+        if self.result_dir is None:
+            return ""
+
+        filename = build_document_filename(
+            kind=kind,
+            target_name=target_name,
+            role_or_mission=role_or_mission,
+            date=date,
+            extension=extension,
+        )
+        return str(build_result_path(self.result_dir, filename))

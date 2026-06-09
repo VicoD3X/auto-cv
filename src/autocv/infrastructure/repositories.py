@@ -101,10 +101,10 @@ class ApplicationRecordRepository:
                 """
                 INSERT INTO application_records (
                     id, opportunity_type, opportunity_id, status, cv_path,
-                    cover_letter_source_path, cover_letter_output_path, export_dir,
+                    cv_output_path, cover_letter_source_path, cover_letter_output_path, export_dir,
                     email_subject, email_body, notes, created_at, updated_at
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     record.id,
@@ -112,6 +112,7 @@ class ApplicationRecordRepository:
                     record.opportunity_id,
                     record.status.value,
                     record.cv_path,
+                    record.cv_output_path,
                     record.cover_letter_source_path,
                     record.cover_letter_output_path,
                     record.export_dir,
@@ -173,6 +174,7 @@ def _application_record_from_row(row) -> ApplicationRecord:
         opportunity_id=row["opportunity_id"],
         status=ApplicationStatus(row["status"]),
         cv_path=row["cv_path"],
+        cv_output_path=row["cv_output_path"],
         cover_letter_source_path=row["cover_letter_source_path"],
         cover_letter_output_path=row["cover_letter_output_path"],
         export_dir=row["export_dir"],
@@ -182,4 +184,3 @@ def _application_record_from_row(row) -> ApplicationRecord:
         created_at=row["created_at"],
         updated_at=row["updated_at"],
     )
-

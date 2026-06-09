@@ -91,6 +91,7 @@ class ApplicationRecord:
     opportunity_id: str
     status: ApplicationStatus
     cv_path: str
+    cv_output_path: str
     cover_letter_source_path: str
     cover_letter_output_path: str
     export_dir: str
@@ -108,6 +109,7 @@ class ApplicationRecord:
         opportunity_id: str,
         cv_path: str,
         cover_letter_source_path: str,
+        cv_output_path: str = "",
         cover_letter_output_path: str = "",
         export_dir: str = "",
         email_subject: str = "",
@@ -122,6 +124,7 @@ class ApplicationRecord:
             opportunity_id=opportunity_id,
             status=status,
             cv_path=cv_path,
+            cv_output_path=cv_output_path,
             cover_letter_source_path=cover_letter_source_path,
             cover_letter_output_path=cover_letter_output_path,
             export_dir=export_dir,
@@ -131,4 +134,3 @@ class ApplicationRecord:
             created_at=timestamp,
             updated_at=timestamp,
         )
-

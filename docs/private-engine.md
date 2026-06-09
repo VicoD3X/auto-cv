@@ -27,6 +27,7 @@ The private engine should contain:
 - ranking and scoring heuristics;
 - local LLM experiments;
 - workflow automation details;
+- mail subject and body generation prompts;
 - private document conversion adapters and reconstruction rules;
 - sensitive Gmail/document automation;
 - any logic that would reveal too much about the internal process.

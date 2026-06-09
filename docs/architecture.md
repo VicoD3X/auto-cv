@@ -78,6 +78,37 @@ The cover letter is treated as the editable generic base. The private local engi
 
 The document contents and generated exports must stay outside the public repository.
 
+## Result Directory
+
+All generated, sorted, renamed, or prepared documents must be written to:
+
+```text
+%USERPROFILE%\Desktop\GENERIQUE PRO\Auto-CV\Result
+```
+
+The app should create this directory during workspace bootstrap.
+
+This folder is local-only and must not be committed to Git.
+
+## Smart Document Naming
+
+Generated documents should use stable explicit names:
+
+```text
+TypeDocument_TargetName_RoleOrMission_Date.ext
+```
+
+Examples:
+
+```text
+CV_Airbus_Data_Scientist_2026_06_09.pdf
+Lettre_Motivation_Airbus_Data_Scientist_2026_06_09.docx
+Proposition_Freelance_Client_Dashboard_2026_06_09.docx
+Mail_Airbus_Data_Scientist_2026_06_09.txt
+```
+
+The public repository owns the naming contract. The private engine can propose smarter labels later, but the generated names must remain readable and Windows-safe.
+
 ## GitHub Project Context
 
 Auto-CV should sync selected GitHub project metadata and content locally so the private engine can reuse real project evidence when adapting cover letters.
@@ -93,6 +124,18 @@ The sync layer should collect safe project context such as:
 - local notes added manually.
 
 The AI layer should use this context to ground letter adjustments in real projects, without inventing experience.
+
+## Mail Drafting
+
+The V1 can delegate mail drafting to the private local AI engine:
+
+- email subject;
+- email body;
+- short attachment reminder;
+- salary application tone;
+- freelance proposal tone.
+
+The public repository exposes the mail draft contract. The private engine owns the prompt and generation details.
 
 ## Document Format Conversion
 

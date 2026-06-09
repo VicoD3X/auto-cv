@@ -26,7 +26,12 @@ Regles :
 - le CV generique est utilise tel quel ;
 - pas de modification IA du CV en V1 ;
 - la lettre generique sert de base editable ;
-- les exports generes restent hors Git.
+- les resultats generes restent hors Git ;
+- les resultats de modification, tri et preparation documentaire sont places dans :
+
+```text
+%USERPROFILE%\Desktop\GENERIQUE PRO\Auto-CV\Result
+```
 
 ## Candidature Salariee
 
@@ -49,6 +54,17 @@ L'IA locale doit faire des ajustements legers :
 - relier l'offre a des projets data reels ;
 - conserver un ton professionnel francais ;
 - ne pas inventer d'experience.
+
+Le CV est copie et renomme proprement dans le dossier `Result`, mais son contenu n'est pas modifie par IA.
+
+La lettre adaptee est sauvegardee dans `Result` avec un nom explicite.
+
+Le mail de candidature peut etre prepare par l'IA locale :
+
+- objet du mail ;
+- corps du mail ;
+- rappel des pieces jointes ;
+- ton professionnel court.
 
 ## Projets GitHub
 
@@ -87,6 +103,29 @@ Besoin client
 ```
 
 Cette face reste plus legere que la partie salariat.
+
+Le message freelance et son objet peuvent aussi etre prepares par l'IA locale.
+
+## Renommage Intelligent
+
+La V1 doit renommer les documents generes ou tries avec des noms explicites.
+
+Format de base :
+
+```text
+TypeDocument_Cible_PosteOuMission_Date.ext
+```
+
+Exemples :
+
+```text
+CV_Airbus_Data_Scientist_2026_06_09.pdf
+Lettre_Motivation_Airbus_Data_Scientist_2026_06_09.docx
+Proposition_Freelance_Client_Dashboard_2026_06_09.docx
+Mail_Airbus_Data_Scientist_2026_06_09.txt
+```
+
+Le renommage doit rester lisible, stable et compatible Windows.
 
 ## Conversion de Formats Documentaires
 
@@ -129,6 +168,7 @@ La V1 ne fait pas encore :
 
 - modification IA du CV ;
 - envoi Gmail automatique ;
+- generation mail sans moteur IA local ;
 - scoring avance des offres ;
 - app iPad autonome ;
 - gestion CRM freelance complete ;

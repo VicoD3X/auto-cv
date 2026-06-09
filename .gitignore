@@ -23,6 +23,8 @@ dist/
 data/
 project_context/
 synced_projects/
+Result/
+Auto-CV/Result/
 *.sqlite
 *.sqlite3
 *.db

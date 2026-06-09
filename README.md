@@ -58,6 +58,9 @@ The first useful version should help with:
 - storing job offers and company context;
 - adapting generic cover letters with a local private AI engine;
 - syncing GitHub project context to support those letter adjustments;
+- preparing email subjects and bodies through the private local AI engine;
+- writing generated and sorted results to `GENERIQUE PRO/Auto-CV/Result`;
+- applying smart document names for CVs, cover letters, proposals, and mail drafts;
 - converting DOCX/PDF and Excel-related document formats;
 - exporting the right document bundle;
 - tracking application status;

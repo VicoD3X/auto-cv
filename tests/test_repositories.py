@@ -25,6 +25,7 @@ def test_repositories_persist_v1_entities(tmp_path) -> None:
         opportunity_type=OpportunityType.JOB,
         opportunity_id=offer.id,
         cv_path="cv.pdf",
+        cv_output_path="result/cv.pdf",
         cover_letter_source_path="lettre.docx",
     )
 
@@ -38,4 +39,3 @@ def test_repositories_persist_v1_entities(tmp_path) -> None:
     assert job_offers.list_all() == [offer]
     assert freelance_opportunities.list_all() == [mission]
     assert applications.list_all() == [record]
-

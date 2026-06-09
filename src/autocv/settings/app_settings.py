@@ -13,6 +13,7 @@ class AppSettings:
     user_interface_language: str
     generated_content_language: str
     document_source_dir: Path
+    result_dir: Path
     generic_cv_filename: str
     generic_cover_letter_filename: str
     github_owner: str
@@ -32,6 +33,7 @@ class AppSettings:
             user_interface_language="fr-FR",
             generated_content_language="fr-FR",
             document_source_dir=Path.home() / "Desktop" / "GENERIQUE PRO",
+            result_dir=Path.home() / "Desktop" / "GENERIQUE PRO" / "Auto-CV" / "Result",
             generic_cv_filename="CV_Victor_Aubry_Data_Scientist_pdf.pdf",
             generic_cover_letter_filename="Lettre_motivation_Victor_Aubry.docx",
             github_owner="VicoD3X",

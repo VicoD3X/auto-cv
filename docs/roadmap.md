@@ -15,12 +15,15 @@
 - Ajouter les reglages locaux.
 - Ajouter le stockage SQLite.
 - Utiliser le dossier `%USERPROFILE%\Desktop\GENERIQUE PRO` comme source documentaire exclusive.
+- Utiliser `%USERPROFILE%\Desktop\GENERIQUE PRO\Auto-CV\Result` comme dossier de sortie exclusif.
 - Charger le CV generique sans modification IA.
 - Charger la lettre generique comme base d'adaptation.
+- Ajouter le renommage intelligent des CV, lettres, propositions et mails.
 - Ajouter la gestion des offres d'emploi.
 - Ajouter une premiere gestion legere des opportunites freelance.
 - Ajouter la synchronisation locale du contexte projets GitHub.
 - Ajouter l'adaptation locale IA des lettres et messages freelance via moteur prive.
+- Ajouter la conception IA locale de l'objet et du corps de mail.
 - Ajouter la conversion DOCX/PDF et XLSX/PDF via adaptateurs locaux.
 - Ajouter les fiches d'offres.
 - Ajouter le suivi des statuts de candidature.

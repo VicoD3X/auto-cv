@@ -82,11 +82,28 @@ Suit une candidature :
 - variante de CV choisie ;
 - lettre de motivation ;
 - statut ;
+- chemin source du CV generique ;
+- chemin de sortie du CV renomme ;
+- chemin source de la lettre generique ;
+- chemin de sortie de la lettre ou proposition ;
 - objet de l'email ;
 - corps de l'email ;
 - pieces jointes ;
 - date d'envoi ;
 - date de relance.
+
+### MailDraft
+
+Stocke une proposition de mail :
+
+- type d'opportunite ;
+- cible ;
+- poste ou mission ;
+- objet ;
+- corps ;
+- pieces jointes ;
+- moteur utilise ;
+- statut de validation.
 
 ### GenerationRun
 
