@@ -78,6 +78,8 @@ Le mail de candidature peut etre prepare par l'IA locale :
 - rappel des pieces jointes ;
 - ton professionnel court.
 
+Dans la premiere integration, les sorties IA sont sauvegardees comme previsualisations `.txt` dans `Result`. La reconstruction DOCX/PDF vient ensuite avec la couche documentaire.
+
 ## Projets GitHub
 
 Auto-CV doit synchroniser les projets GitHub pour donner du contexte au moteur local.

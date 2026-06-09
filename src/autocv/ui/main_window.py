@@ -26,6 +26,7 @@ from PySide6.QtWidgets import (
 )
 
 from autocv.domain import ApplicationRecord, ApplicationStatus, OpportunityType
+from autocv.documents.naming import DocumentKind
 from autocv.i18n.fr_fr import APPLICATION_STATUS_LABELS
 from autocv.infrastructure import (
     ApplicationRecordRepository,
@@ -34,7 +35,8 @@ from autocv.infrastructure import (
     LocalDatabase,
 )
 from autocv.settings.app_settings import AppSettings
-from autocv.use_cases import BootstrapWorkspace, MissingDocumentSourceError, V1ApplicationService
+from autocv.mail import MailDraftRequest
+from autocv.use_cases import BootstrapWorkspace, MissingDocumentSourceError, V1AiService, V1ApplicationService
 
 
 class MainWindow(QMainWindow):
@@ -54,6 +56,7 @@ class MainWindow(QMainWindow):
         self.job_offers = JobOfferRepository(self.database)
         self.freelance_opportunities = FreelanceOpportunityRepository(self.database)
         self.applications = ApplicationRecordRepository(self.database)
+        self.ai_service = V1AiService()
         self.current_records: list[ApplicationRecord] = []
 
         self.setWindowTitle("Auto-CV")
@@ -211,10 +214,10 @@ class MainWindow(QMainWindow):
         actions_layout.addWidget(actions_title)
         self.adapt_letter_button = QPushButton("Adapter la lettre")
         self.adapt_letter_button.setObjectName("ActionButton")
-        self.adapt_letter_button.clicked.connect(self.show_private_engine_message)
+        self.adapt_letter_button.clicked.connect(self.adapt_selected_text)
         self.prepare_mail_button = QPushButton("Préparer le mail")
         self.prepare_mail_button.setObjectName("ActionButton")
-        self.prepare_mail_button.clicked.connect(self.show_private_engine_message)
+        self.prepare_mail_button.clicked.connect(self.prepare_selected_mail)
         self.open_result_button = QPushButton("Ouvrir Result")
         self.open_result_button.setObjectName("ActionButton")
         self.open_result_button.clicked.connect(self.open_result_directory)
@@ -343,12 +346,122 @@ class MainWindow(QMainWindow):
         else:
             subprocess.Popen(["open", str(path)])
 
-    def show_private_engine_message(self) -> None:
-        QMessageBox.information(
-            self,
-            "Moteur privé",
-            "Le branchement Qwen3 local est la prochaine brique. "
-            "Le contrat est prêt, le runner privé reste hors dépôt public.",
+    def adapt_selected_text(self) -> None:
+        record = self._selected_record()
+        if record is None:
+            QMessageBox.information(self, "Sélection", "Sélectionne une candidature.")
+            return
+
+        target_name, role = self._target_for_record(record)
+        context = self._context_for_record(record)
+        response = self.ai_service.adapt_application_text(
+            record=record,
+            target_name=target_name,
+            role_or_mission=role,
+            context=context,
+        )
+        if not response.available:
+            QMessageBox.warning(self, "IA locale indisponible", response.text)
+            return
+
+        kind = (
+            DocumentKind.FREELANCE_PROPOSAL
+            if record.opportunity_type == OpportunityType.FREELANCE
+            else DocumentKind.COVER_LETTER
+        )
+        output = self.ai_service.save_preview(
+            result_dir=self.bootstrap.result_dir,
+            kind=kind,
+            target_name=target_name,
+            role_or_mission=role,
+            date=record.created_at[:10],
+            content=response.text,
+        )
+        PreviewDialog(
+            title="Texte généré",
+            heading=f"{target_name} · {role}",
+            body=response.text,
+            output_path=output,
+            parent=self,
+        ).exec()
+
+    def prepare_selected_mail(self) -> None:
+        record = self._selected_record()
+        if record is None:
+            QMessageBox.information(self, "Sélection", "Sélectionne une candidature.")
+            return
+
+        target_name, role = self._target_for_record(record)
+        draft = self.ai_service.draft_mail(
+            request=MailDraftRequest(
+                opportunity_type=record.opportunity_type,
+                target_name=target_name,
+                role_or_mission=role,
+                context=self._context_for_record(record),
+                attachment_paths=(
+                    record.cv_output_path or record.cv_path,
+                    record.cover_letter_output_path or record.cover_letter_source_path,
+                ),
+            )
+        )
+        if not draft.available:
+            QMessageBox.warning(self, "IA locale indisponible", draft.body)
+            return
+
+        content = f"Objet: {draft.subject}\n\nCorps:\n{draft.body}"
+        output = self.ai_service.save_preview(
+            result_dir=self.bootstrap.result_dir,
+            kind=DocumentKind.EMAIL_DRAFT,
+            target_name=target_name,
+            role_or_mission=role,
+            date=record.created_at[:10],
+            content=content,
+        )
+        PreviewDialog(
+            title="Mail préparé",
+            heading=draft.subject,
+            body=draft.body,
+            output_path=output,
+            parent=self,
+        ).exec()
+
+    def _selected_record(self) -> ApplicationRecord | None:
+        selected = self.table.selectionModel().selectedRows() if self.table.selectionModel() else []
+        if not selected:
+            return None
+        row = selected[0].row()
+        if row < 0 or row >= len(self.current_records):
+            return None
+        return self.current_records[row]
+
+    def _context_for_record(self, record: ApplicationRecord) -> str:
+        if record.opportunity_type == OpportunityType.JOB:
+            offer = self.job_offers.get(record.opportunity_id)
+            if offer is None:
+                return ""
+            return "\n".join(
+                [
+                    f"Entreprise: {offer.company}",
+                    f"Poste: {offer.title}",
+                    f"URL: {offer.url}",
+                    f"Localisation: {offer.location}",
+                    f"Description:\n{offer.description}",
+                    f"Notes:\n{offer.notes}",
+                ]
+            )
+
+        opportunity = self.freelance_opportunities.get(record.opportunity_id)
+        if opportunity is None:
+            return ""
+        return "\n".join(
+            [
+                f"Client: {opportunity.client}",
+                f"Mission: {opportunity.mission_type}",
+                f"Besoin:\n{opportunity.need}",
+                f"Budget: {opportunity.budget}",
+                f"URL: {opportunity.url}",
+                f"Notes:\n{opportunity.notes}",
+            ]
         )
 
     def _target_for_record(self, record: ApplicationRecord) -> tuple[str, str]:
@@ -662,6 +775,40 @@ class FreelanceOpportunityDialog(QDialog):
             "need": self.need.toPlainText().strip(),
             "notes": self.notes.toPlainText().strip(),
         }
+
+
+class PreviewDialog(QDialog):
+    def __init__(
+        self,
+        *,
+        title: str,
+        heading: str,
+        body: str,
+        output_path,
+        parent: QWidget | None = None,
+    ) -> None:
+        super().__init__(parent)
+        self.setWindowTitle(title)
+        self.setMinimumSize(720, 520)
+
+        layout = QVBoxLayout(self)
+        title_label = QLabel(heading)
+        title_label.setObjectName("DetailTitle")
+        title_label.setWordWrap(True)
+        layout.addWidget(title_label)
+
+        path_label = QLabel(f"Sauvegardé dans: {output_path}")
+        path_label.setWordWrap(True)
+        layout.addWidget(path_label)
+
+        text = QTextEdit()
+        text.setReadOnly(True)
+        text.setPlainText(body)
+        layout.addWidget(text, stretch=1)
+
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
 
 
 def run_desktop_app(settings: AppSettings) -> int:

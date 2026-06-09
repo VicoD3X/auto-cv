@@ -41,6 +41,15 @@ Qwen3-14B is used for:
 - preparing an email body;
 - using synchronized GitHub project context as evidence.
 
+The desktop UI calls these tasks through the public `V1AiService`:
+
+```text
+Adapter la lettre -> cover_letter_adaptation or freelance_proposal
+Préparer le mail -> mail_draft
+```
+
+When the private engine is unavailable, the app stays usable and shows a clear local-AI unavailable message.
+
 Qwen3-14B is not used for:
 
 - modifying the CV content;
@@ -86,3 +95,12 @@ For V1 writing tasks:
 
 The private engine may expose a manual switch to Q5_K_M after Q4_K_M is validated on the machine.
 
+## Private Local Package
+
+The local private package is expected at:
+
+```text
+src/autocv_private_engine/
+```
+
+This folder is ignored by Git. It contains the actual local runner, private prompts, and Qwen3 request handling.
