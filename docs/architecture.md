@@ -22,6 +22,41 @@ This means the codebase can keep English identifiers while every user-facing lab
 
 French product strings should be centralized under `src/autocv/i18n/`.
 
+## Public / Private Boundary
+
+The public repository contains the project shell:
+
+- documentation;
+- product architecture;
+- UI direction;
+- public contracts;
+- safe placeholder adapters;
+- tests and CI.
+
+The real engine can remain private for now. This includes:
+
+- local prompts;
+- personal scoring rules;
+- model experiments;
+- private automation logic;
+- sensitive workflow heuristics;
+- Gmail or document automation details that should not be exposed yet.
+
+The public app should depend on contracts, not directly on private implementation details.
+
+```text
+public repo
+  -> src/autocv/engine/contracts.py
+  -> src/autocv/engine/public_stub.py
+  -> src/autocv/engine/loader.py
+
+ignored local code
+  -> src/autocv_private_engine/
+  -> private_engine/
+```
+
+If the private engine is absent, the app must still start and use the public stub.
+
 ## Architecture Shape
 
 Auto-CV should be built as a **PC-first desktop application with an optional private remote layer**.
@@ -146,6 +181,7 @@ src/autocv/
   ai/               # local AI adapters and generation helpers
   documents/        # document import, export, and attachment bundles
   domain/           # pure business entities
+  engine/           # public engine contracts and safe stub
   infrastructure/   # database, filesystem, network adapters
   mail/             # Gmail integration and email drafts
   remote/           # private server for iPad companion access
@@ -162,6 +198,7 @@ Auto-CV will manipulate sensitive personal data: CVs, cover letters, emails, job
 The project should therefore follow these rules from the start:
 
 - no secrets committed to Git;
+- no private engine code committed to Git for now;
 - Gmail credentials stored outside the repository;
 - local tokens excluded by `.gitignore`;
 - remote iPad access protected by a local token;

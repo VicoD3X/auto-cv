@@ -63,6 +63,14 @@ The first useful version should help with:
 
 The long-term engine can combine deterministic rules, templates, local machine learning, and a local open-source LLM runner.
 
+## Public / Private Boundary
+
+This repository contains the public project shell: documentation, application structure, contracts, UI direction, CI, and safe placeholder adapters.
+
+The private engine is intentionally not published for now. It can live locally outside Git or under ignored folders such as `private_engine/` or `src/autocv_private_engine/`.
+
+This keeps the repository readable and portfolio-friendly while preserving the internal logic, prompts, personal automation rules, local model experiments, and sensitive workflow details.
+
 ## Technical Foundation
 
 - Python for the application core, automation, AI workflows, and data processing.
@@ -87,6 +95,7 @@ src/autocv/
   ai/
   documents/
   domain/
+  engine/
   infrastructure/
   i18n/
   mail/

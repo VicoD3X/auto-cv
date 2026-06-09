@@ -25,6 +25,14 @@ data/
 *.sqlite3
 *.db
 
+# Private engine
+private/
+private_engine/
+local_engine/
+engine_private/
+src/autocv_private/
+src/autocv_private_engine/
+
 # Secrets and local configuration
 .env
 .env.*
@@ -39,4 +47,3 @@ client_secret*.json
 Thumbs.db
 .idea/
 .vscode/
-
