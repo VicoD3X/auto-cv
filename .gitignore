@@ -21,6 +21,8 @@ dist/
 
 # Local application data
 data/
+project_context/
+synced_projects/
 *.sqlite
 *.sqlite3
 *.db

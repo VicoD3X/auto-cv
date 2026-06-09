@@ -56,9 +56,12 @@ The first useful version should help with:
 
 - managing reusable CV and cover letter versions;
 - storing job offers and company context;
-- generating tailored application drafts;
+- adapting generic cover letters with a local private AI engine;
+- syncing GitHub project context to support those letter adjustments;
+- converting DOCX/PDF and Excel-related document formats;
 - exporting the right document bundle;
 - tracking application status;
+- keeping a lightweight freelance opportunity track;
 - optionally preparing or sending Gmail messages with attachments.
 
 The long-term engine can combine deterministic rules, templates, local machine learning, and a local open-source LLM runner.
@@ -90,6 +93,7 @@ docs/
   data-model.md
   language-policy.md
   roadmap.md
+  v1-scope.md
 src/autocv/
   app/
   ai/
@@ -99,9 +103,11 @@ src/autocv/
   infrastructure/
   i18n/
   mail/
+  projects/
   remote/
   settings/
   sync/
+  conversion/
   ui/
   use_cases/
 tests/

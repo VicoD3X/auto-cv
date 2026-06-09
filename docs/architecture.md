@@ -57,6 +57,66 @@ ignored local code
 
 If the private engine is absent, the app must still start and use the public stub.
 
+## Source Documents
+
+The V1 uses one local source folder for professional documents:
+
+```text
+%USERPROFILE%\Desktop\GENERIQUE PRO
+```
+
+Expected files:
+
+```text
+CV_Victor_Aubry_Data_Scientist_pdf.pdf
+Lettre_motivation_Victor_Aubry.docx
+```
+
+The CV is treated as a stable generic document for V1. No AI modification is planned for the CV.
+
+The cover letter is treated as the editable generic base. The private local engine can adapt it lightly to a specific job offer or freelance mission.
+
+The document contents and generated exports must stay outside the public repository.
+
+## GitHub Project Context
+
+Auto-CV should sync selected GitHub project metadata and content locally so the private engine can reuse real project evidence when adapting cover letters.
+
+The sync layer should collect safe project context such as:
+
+- repository name;
+- description;
+- topics;
+- languages;
+- README summary;
+- selected project highlights;
+- local notes added manually.
+
+The AI layer should use this context to ground letter adjustments in real projects, without inventing experience.
+
+## Document Format Conversion
+
+The V1 includes a document conversion layer for:
+
+- DOCX;
+- PDF;
+- XLSX.
+
+Priority conversions:
+
+```text
+DOCX -> PDF
+PDF  -> DOCX
+XLSX -> PDF
+PDF  -> XLSX
+```
+
+DOCX -> PDF and XLSX -> PDF are export workflows. PDF -> DOCX and PDF -> XLSX are reconstruction workflows and should be treated as best-effort operations.
+
+The public repository can expose conversion contracts. The private local engine or local adapters perform the actual conversion.
+
+The public repository can expose sync contracts and cache structure. The private engine decides how to rank and inject project context.
+
 ## Architecture Shape
 
 Auto-CV should be built as a **PC-first desktop application with an optional private remote layer**.
@@ -184,9 +244,11 @@ src/autocv/
   engine/           # public engine contracts and safe stub
   infrastructure/   # database, filesystem, network adapters
   mail/             # Gmail integration and email drafts
+  projects/         # GitHub project sync contracts and project context
   remote/           # private server for iPad companion access
   settings/         # local configuration and paths
   sync/             # queue, status, online/offline transitions
+  conversion/       # document format conversion contracts and safe stub
   ui/               # Windows desktop UI
   use_cases/        # application workflows
 ```

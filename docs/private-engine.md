@@ -27,6 +27,7 @@ The private engine should contain:
 - ranking and scoring heuristics;
 - local LLM experiments;
 - workflow automation details;
+- private document conversion adapters and reconstruction rules;
 - sensitive Gmail/document automation;
 - any logic that would reveal too much about the internal process.
 
@@ -51,4 +52,3 @@ If a private engine package named `autocv_private_engine` exists locally, the lo
 If it does not exist, the app falls back to a public stub.
 
 This keeps the repository runnable without publishing the real engine.
-

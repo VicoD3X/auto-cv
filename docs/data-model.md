@@ -62,6 +62,18 @@ Stocke une opportunite :
 - fourchette de salaire si disponible ;
 - notes.
 
+### FreelanceOpportunity
+
+Stocke une opportunite freelance legere :
+
+- client ou plateforme ;
+- besoin exprime ;
+- type de mission ;
+- budget ou TJM si connu ;
+- URL ;
+- notes ;
+- statut.
+
 ### ApplicationRecord
 
 Suit une candidature :
@@ -85,6 +97,32 @@ Trace une generation IA ou automatique :
 - sortie generee ;
 - statut de validation ;
 - date.
+
+### GitHubProject
+
+Stocke un projet synchronise depuis GitHub :
+
+- nom du depot ;
+- URL ;
+- description ;
+- topics ;
+- langages principaux ;
+- resume README ;
+- tags metier ;
+- date de derniere synchronisation.
+
+### ConversionJob
+
+Suit une conversion documentaire :
+
+- fichier source ;
+- format source ;
+- format cible ;
+- fichier de sortie ;
+- statut ;
+- adaptateur utilise ;
+- date ;
+- notes de validation.
 
 ### AttachmentBundle
 

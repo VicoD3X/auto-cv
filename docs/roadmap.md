@@ -14,8 +14,14 @@
 - Construire une coque desktop Windows minimale.
 - Ajouter les reglages locaux.
 - Ajouter le stockage SQLite.
-- Ajouter la gestion des variantes de CV.
-- Ajouter la gestion des modeles de lettres.
+- Utiliser le dossier `%USERPROFILE%\Desktop\GENERIQUE PRO` comme source documentaire exclusive.
+- Charger le CV generique sans modification IA.
+- Charger la lettre generique comme base d'adaptation.
+- Ajouter la gestion des offres d'emploi.
+- Ajouter une premiere gestion legere des opportunites freelance.
+- Ajouter la synchronisation locale du contexte projets GitHub.
+- Ajouter l'adaptation locale IA des lettres et messages freelance via moteur prive.
+- Ajouter la conversion DOCX/PDF et XLSX/PDF via adaptateurs locaux.
 - Ajouter les fiches d'offres.
 - Ajouter le suivi des statuts de candidature.
 
@@ -24,6 +30,7 @@
 - Importer les CV et lettres existants.
 - Creer des dossiers d'export par candidature.
 - Generer des paquets de pieces jointes.
+- Convertir les documents DOCX/PDF et XLSX/PDF dans les deux sens utiles.
 - Ajouter des controles simples de coherence.
 - Ajouter les paragraphes reutilisables.
 
@@ -34,6 +41,7 @@
 - Integrer un modele local via un runner interchangeable.
 - Benchmarker des modeles open source candidats.
 - Ajouter une validation humaine obligatoire avant sortie finale.
+- Garder la modification IA du CV hors scope tant que le CV generique suffit.
 
 ## Phase 4 - Integration Gmail
 
@@ -58,4 +66,3 @@
 - Ajouter des captures du logiciel.
 - Ajouter les notes de release.
 - Soigner les tags et la presentation GitHub.
-
