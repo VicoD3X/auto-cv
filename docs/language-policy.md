@@ -9,9 +9,9 @@ Repository layer -> English
 Product layer    -> French
 ```
 
-The repository is public and part of Victor's professional GitHub presence. It should therefore remain clean, readable, and credible for an international technical audience.
+The repository is public and part of a professional GitHub presence. It should therefore remain clean, readable, and credible for an international technical audience.
 
-The software itself is personal and built for Victor's real job application workflow. The product experience must therefore be French-first.
+The software itself is personal and built around a real French job application workflow. The product experience must therefore be French-first.
 
 ## English Layer
 
@@ -38,7 +38,7 @@ Use French for:
 - local templates;
 - workflow names shown in the app;
 - onboarding/help text inside the app;
-- validation messages shown to Victor.
+- validation messages shown in the app.
 
 ## Code Convention
 
@@ -77,4 +77,3 @@ en-US
 ```
 
 Future support for English CVs or cover letters may exist per job application, but the software interface remains French-first.
-

@@ -6,7 +6,7 @@ Ce modele est un point de depart. Il evoluera quand le premier vrai workflow ser
 
 ### CandidateProfile
 
-Stocke le profil professionnel stable de Victor :
+Stocke le profil professionnel stable :
 
 - identite ;
 - resume professionnel ;
@@ -107,4 +107,3 @@ Statuts terminaux possibles :
 - refuse ;
 - accepte ;
 - archive.
-

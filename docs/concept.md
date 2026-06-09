@@ -6,7 +6,7 @@ Auto-CV est un espace de travail personnel tout-en-un pour gerer les candidature
 
 Son objectif est simple : supprimer la friction, la repetition et le jonglage de fichiers qui rendent les candidatures longues, penibles et mentalement usantes.
 
-Le projet est personnel. Le depot GitHub est public pour la valeur portfolio, mais le logiciel n'est pas pense comme un produit commercial.
+Le projet est personnel. Le depot GitHub est public et soigne comme un projet portfolio, mais le logiciel n'est pas pense comme un produit commercial.
 
 ## Probleme Central
 
@@ -41,7 +41,7 @@ Le logiciel doit rester simple, professionnel et calme. On ne cherche pas une ex
 
 ## Utilisateur Principal
 
-L'utilisateur principal est Victor :
+Le profil utilisateur cible est clair :
 
 - jeune Data Scientist ;
 - Master 2 valide via OpenClassrooms ;
@@ -130,7 +130,7 @@ Taches utiles :
 
 - resumer une offre ;
 - extraire les competences demandees ;
-- comparer l'offre avec le profil de Victor ;
+- comparer l'offre avec le profil candidat ;
 - suggerer des ajustements de CV ;
 - rediger une premiere version de lettre ;
 - detecter les informations manquantes ;
@@ -149,4 +149,3 @@ L'interface doit etre :
 - structuree autour des workflows reels.
 
 Auto-CV doit ressembler a un outil personnel serieux, pas a une demo visuelle.
-

@@ -10,7 +10,7 @@
 Auto-CV is a personal desktop-first tool designed to remove the friction from job applications:
 CV variants, cover letters, job offers, attachments, exports, and optional Gmail sending in one clean workspace.
 
-The project is public because the repository is also part of Victor's technical portfolio, but the software itself is currently built for personal use only.
+The repository is intentionally public and polished, while the software remains a personal internal tool.
 
 ## Language Boundary
 
