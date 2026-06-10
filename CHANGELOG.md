@@ -2,6 +2,7 @@
 
 ## 0.2.0 - V1 Development Start
 
+- Added a Windows desktop launcher and Auto-CV icon.
 - Added the first PySide6 operational dashboard UI.
 - Added V1 domain entities for job offers, freelance opportunities, and application records.
 - Added local SQLite initialization and repositories.
