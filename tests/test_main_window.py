@@ -1,12 +1,11 @@
 from dataclasses import replace
+from pathlib import Path
 from time import monotonic
 
 from PySide6.QtWidgets import QApplication
 
 from autocv.ai import LocalAiServerResult
-from autocv.ai.status import LocalAiStatus
 from autocv.domain import ApplicationStatus
-from autocv.engine import EngineResponse
 from autocv.projects import GitHubProjectContext
 from autocv.settings.app_settings import AppSettings
 from autocv.ui.main_window import _project_payload
@@ -15,10 +14,6 @@ from autocv.ui import MainWindow
 
 def test_main_window_can_be_created_offscreen(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setattr(
-        "autocv.ui.main_window.check_local_ai_status",
-        lambda base_url: LocalAiStatus(online=False, message="offline"),
-    )
     source_dir = tmp_path / "GENERIQUE PRO"
     source_dir.mkdir()
     (source_dir / "cv.pdf").write_text("CV")
@@ -39,12 +34,20 @@ def test_main_window_can_be_created_offscreen(tmp_path, monkeypatch) -> None:
 
     assert window.windowTitle() == "Auto-CV"
     assert window.table.columnCount() == 7
-    assert window.stack.count() == 6
+    assert window.stack.count() == 7
     assert window.chat_input.placeholderText() == "Chat IA desactive en V1"
     assert window.chat_input.isEnabled() is False
     assert "Mode V1 sans IA" in window.chat_transcript.toPlainText()
     window.show_view("Documents")
     assert window.documents_table.rowCount() == 2
+    assert window.duplicate_document_button.text() == "Dupliquer & ouvrir"
+    assert window.finalize_document_button.text() == "Finaliser modification"
+    assert window.cancel_document_button.text() == "Annuler et supprimer"
+    assert window.open_target_folder_button.text() == "Ouvrir dossier cible"
+    window.show_view("Pre-suppression")
+    assert window.trash_table.columnCount() == 7
+    assert window.restore_trash_button.text() == "Restaurer"
+    assert window.delete_trash_button.text() == "Supprimer definitivement"
     window.show_view("Parametres")
     assert window.stack.currentIndex() == window.view_indexes["Parametres"]
     assert window.bootstrap.document_source_ready is True
@@ -55,10 +58,6 @@ def test_main_window_can_be_created_offscreen(tmp_path, monkeypatch) -> None:
 
 def test_main_window_accepts_github_project_in_assistant(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setattr(
-        "autocv.ui.main_window.check_local_ai_status",
-        lambda base_url: LocalAiStatus(online=False, message="offline"),
-    )
     source_dir = tmp_path / "GENERIQUE PRO"
     source_dir.mkdir()
     (source_dir / "cv.pdf").write_text("CV")
@@ -92,10 +91,6 @@ def test_main_window_accepts_github_project_in_assistant(tmp_path, monkeypatch) 
 
 def test_main_window_updates_status_offscreen(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setattr(
-        "autocv.ui.main_window.check_local_ai_status",
-        lambda base_url: LocalAiStatus(online=False, message="offline"),
-    )
     source_dir = tmp_path / "GENERIQUE PRO"
     source_dir.mkdir()
     (source_dir / "cv.pdf").write_text("CV")
@@ -131,10 +126,6 @@ def test_main_window_updates_status_offscreen(tmp_path, monkeypatch) -> None:
 
 def test_main_window_prepares_deterministic_mail_without_ai(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setattr(
-        "autocv.ui.main_window.check_local_ai_status",
-        lambda base_url: LocalAiStatus(online=False, message="offline"),
-    )
     captured = {}
 
     class FakePreviewDialog:
@@ -173,6 +164,168 @@ def test_main_window_prepares_deterministic_mail_without_ai(tmp_path, monkeypatc
     assert "Bonjour," in content
     assert "Airbus" in content
     assert "Data Scientist" in content
+    assert output_path.parent == Path(window.current_records[0].export_dir)
+    assert window.ai_server is None
+
+    window.close()
+    app.processEvents()
+
+
+def test_main_window_document_edit_session_deletes_unchanged_copy(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    monkeypatch.setattr("autocv.ui.main_window.QMessageBox.information", lambda *args, **kwargs: None)
+    monkeypatch.setattr("autocv.ui.main_window.QMessageBox.warning", lambda *args, **kwargs: None)
+    source_dir = tmp_path / "GENERIQUE PRO"
+    source_dir.mkdir()
+    cv_source = source_dir / "cv.pdf"
+    letter_source = source_dir / "lettre.docx"
+    cv_source.write_text("CV", encoding="utf-8")
+    letter_source.write_text("Lettre", encoding="utf-8")
+    settings = replace(
+        AppSettings.load(),
+        data_dir=tmp_path / "data",
+        project_context_cache_dir=tmp_path / "data" / "project_context",
+        document_source_dir=source_dir,
+        result_dir=source_dir / "Auto-CV" / "Result",
+        generic_cv_filename="cv.pdf",
+        generic_cover_letter_filename="lettre.docx",
+    )
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(settings)
+    opened: list[Path] = []
+    monkeypatch.setattr(window, "_open_path", lambda path: opened.append(Path(path)))
+    window.show_view("Documents")
+    letter_row = next(
+        index for index, document in enumerate(window.scanned_documents) if document.path == letter_source
+    )
+    window.documents_table.selectRow(letter_row)
+
+    window.duplicate_selected_document_for_edit()
+    session = window.current_edit_session
+    assert session is not None
+    assert opened == [session.working_copy_path]
+    assert session.working_copy_path.exists()
+    assert session.working_copy_path.parent.is_relative_to(settings.result_dir)
+
+    window.finalize_current_edit_session()
+
+    assert window.current_edit_session is None
+    assert not session.working_copy_path.exists()
+    assert len(window.trash_entries) == 1
+    assert window.trash_entries[0].trash_path.exists()
+    assert letter_source.read_text(encoding="utf-8") == "Lettre"
+
+    window.show_view("Pre-suppression")
+    window.trash_table.selectRow(0)
+    window.restore_selected_trash_entry()
+
+    assert session.working_copy_path.exists()
+    assert window.trash_entries == []
+    assert letter_source.read_text(encoding="utf-8") == "Lettre"
+
+    window.close()
+    app.processEvents()
+
+
+def test_main_window_document_edit_session_keeps_modified_copy_and_can_cancel(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    monkeypatch.setattr("autocv.ui.main_window.QMessageBox.information", lambda *args, **kwargs: None)
+    monkeypatch.setattr("autocv.ui.main_window.QMessageBox.warning", lambda *args, **kwargs: None)
+    source_dir = tmp_path / "GENERIQUE PRO"
+    source_dir.mkdir()
+    cv_source = source_dir / "cv.pdf"
+    letter_source = source_dir / "lettre.docx"
+    cv_source.write_text("CV", encoding="utf-8")
+    letter_source.write_text("Lettre", encoding="utf-8")
+    settings = replace(
+        AppSettings.load(),
+        data_dir=tmp_path / "data",
+        project_context_cache_dir=tmp_path / "data" / "project_context",
+        document_source_dir=source_dir,
+        result_dir=source_dir / "Auto-CV" / "Result",
+        generic_cv_filename="cv.pdf",
+        generic_cover_letter_filename="lettre.docx",
+    )
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(settings)
+    monkeypatch.setattr(window, "_open_path", lambda path: None)
+    window.show_view("Documents")
+    letter_row = next(
+        index for index, document in enumerate(window.scanned_documents) if document.path == letter_source
+    )
+    window.documents_table.selectRow(letter_row)
+
+    window.duplicate_selected_document_for_edit()
+    kept_session = window.current_edit_session
+    assert kept_session is not None
+    kept_session.working_copy_path.write_text("Lettre modifiee", encoding="utf-8")
+
+    window.finalize_current_edit_session()
+
+    assert window.current_edit_session is None
+    assert kept_session.working_copy_path.exists()
+    assert kept_session.working_copy_path.read_text(encoding="utf-8") == "Lettre modifiee"
+
+    window.duplicate_selected_document_for_edit()
+    cancelled_session = window.current_edit_session
+    assert cancelled_session is not None
+
+    window.cancel_current_edit_session()
+
+    assert window.current_edit_session is None
+    assert not cancelled_session.working_copy_path.exists()
+    assert len(window.trash_entries) == 1
+    assert window.trash_entries[0].reason.value == "canceled_edit"
+    assert letter_source.read_text(encoding="utf-8") == "Lettre"
+
+    window.close()
+    app.processEvents()
+
+
+def test_main_window_creates_document_pack_without_ai(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    monkeypatch.setattr("autocv.ui.main_window.QMessageBox.information", lambda *args, **kwargs: None)
+    monkeypatch.setattr("autocv.ui.main_window.QMessageBox.warning", lambda *args, **kwargs: None)
+    source_dir = tmp_path / "GENERIQUE PRO"
+    source_dir.mkdir()
+    cv_source = source_dir / "cv.pdf"
+    letter_source = source_dir / "lettre.docx"
+    cv_source.write_text("CV", encoding="utf-8")
+    letter_source.write_text("Lettre", encoding="utf-8")
+    settings = replace(
+        AppSettings.load(),
+        data_dir=tmp_path / "data",
+        project_context_cache_dir=tmp_path / "data" / "project_context",
+        document_source_dir=source_dir,
+        result_dir=source_dir / "Auto-CV" / "Result",
+        generic_cv_filename="cv.pdf",
+        generic_cover_letter_filename="lettre.docx",
+    )
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(settings)
+    opened: list[Path] = []
+    monkeypatch.setattr(window, "_open_path", lambda path: opened.append(Path(path)))
+    draft = window.service.create_job_application(company="Airbus", title="Data Scientist")
+    window.refresh()
+    window.show_view("Candidatures")
+    window.jobs_table.selectRow(0)
+
+    window.create_selected_document_pack()
+
+    target_folder = Path(draft.application.export_dir)
+    assert opened[-1] == target_folder
+    assert list(target_folder.glob("CV_Airbus_Data_Scientist_*.pdf"))
+    assert list(target_folder.glob("Lettre_Motivation_Airbus_Data_Scientist_*.docx"))
+    mail_files = list(target_folder.glob("Mail_Airbus_Data_Scientist_*.txt"))
+    assert len(mail_files) == 1
+    assert "Objet: Candidature - Data Scientist - Victor Aubry" in mail_files[0].read_text(
+        encoding="utf-8"
+    )
+    assert cv_source.read_text(encoding="utf-8") == "CV"
+    assert letter_source.read_text(encoding="utf-8") == "Lettre"
     assert window.ai_server is None
 
     window.close()
@@ -181,10 +334,6 @@ def test_main_window_prepares_deterministic_mail_without_ai(tmp_path, monkeypatc
 
 def test_main_window_does_not_start_ai_on_launch(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setattr(
-        "autocv.ui.main_window.check_local_ai_status",
-        lambda base_url: LocalAiStatus(online=False, message="offline"),
-    )
     source_dir = tmp_path / "GENERIQUE PRO"
     source_dir.mkdir()
     (source_dir / "cv.pdf").write_text("CV")
@@ -198,25 +347,18 @@ def test_main_window_does_not_start_ai_on_launch(tmp_path, monkeypatch) -> None:
         generic_cv_filename="cv.pdf",
         generic_cover_letter_filename="lettre.docx",
     )
-    fake_server = FakeAiServer()
-    monkeypatch.setattr("autocv.ui.main_window.LocalAiServerManager", lambda settings: fake_server)
-
     app = QApplication.instance() or QApplication([])
     window = MainWindow(settings)
 
-    assert fake_server.ensure_calls == 0
+    assert window.ai_server is None
     assert "IA locale: desactivee" in window.local_ai_status.text()
 
     window.close()
     app.processEvents()
 
 
-def test_main_window_starts_ai_when_chat_is_triggered(tmp_path, monkeypatch) -> None:
+def test_main_window_keeps_ai_disabled_even_if_setting_is_enabled(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setattr(
-        "autocv.ui.main_window.check_local_ai_status",
-        lambda base_url: LocalAiStatus(online=True, message="online"),
-    )
     source_dir = tmp_path / "GENERIQUE PRO"
     source_dir.mkdir()
     (source_dir / "cv.pdf").write_text("CV")
@@ -236,15 +378,14 @@ def test_main_window_starts_ai_when_chat_is_triggered(tmp_path, monkeypatch) -> 
     window = MainWindow(settings)
     fake_server = FakeAiServer()
     window.ai_server = fake_server
-    window.ai_service = FakeAiService()
     window.chat_input.setText("Tu es pret ?")
 
     window.send_chat_message()
 
-    assert fake_server.ensure_calls == 1
-    assert window.ai_idle_timer.isActive() is True
-    assert "Victor\nTu es pret ?" in window.chat_transcript.toPlainText()
-    assert "Auto-CV\npong" in window.chat_transcript.toPlainText()
+    assert fake_server.ensure_calls == 0
+    assert window.ai_idle_timer.isActive() is False
+    assert "Victor\nTu es pret ?" not in window.chat_transcript.toPlainText()
+    assert "IA locale: desactivee" in window.local_ai_status.text()
 
     window.close()
     app.processEvents()
@@ -252,10 +393,6 @@ def test_main_window_starts_ai_when_chat_is_triggered(tmp_path, monkeypatch) -> 
 
 def test_main_window_stops_ai_after_idle_timeout(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
-    monkeypatch.setattr(
-        "autocv.ui.main_window.check_local_ai_status",
-        lambda base_url: LocalAiStatus(online=False, message="offline"),
-    )
     source_dir = tmp_path / "GENERIQUE PRO"
     source_dir.mkdir()
     (source_dir / "cv.pdf").write_text("CV")
@@ -303,8 +440,3 @@ class FakeAiServer:
         self.stop_calls += 1
         self.online = False
         return LocalAiServerResult(available=True, message="stopped")
-
-
-class FakeAiService:
-    def chat(self, **kwargs) -> EngineResponse:
-        return EngineResponse(text="pong", source="fake", available=True, model="fake")

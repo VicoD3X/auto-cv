@@ -56,18 +56,23 @@ The first useful version should help with:
 
 - managing reusable CV and cover letter versions;
 - storing job offers and company context;
-- copying and renaming the reusable generic CV and cover letter into a clean result workspace;
-- syncing GitHub project context to support those letter adjustments;
+- copying and renaming reusable generic documents into a clean result workspace;
+- editing documents through safe working copies, never through the original source files;
+- organizing each target in `Result/<Target>_<Role>_<Date>/`;
+- keeping canceled or unchanged work copies in a local pre-deletion area for 30 days before permanent removal;
+- syncing GitHub project context to support manual letter adjustments;
 - preparing deterministic email drafts without requiring a local LLM;
 - writing generated and sorted results to `GENERIQUE PRO/Auto-CV/Result`;
 - applying smart document names for CVs, cover letters, proposals, and mail drafts;
-- converting DOCX/PDF and Excel-related document formats;
+- converting DOCX/PDF formats locally, with Excel conversion kept secondary;
 - exporting the right document bundle;
 - tracking application status;
 - keeping a lightweight freelance opportunity track;
 - optionally preparing or sending Gmail messages with attachments.
 
 The V1 deliberately prioritizes deterministic reliability over LLM generation. The long-term engine can still combine rules, templates, local machine learning, and an optional local open-source LLM runner later.
+
+The previous local AI integration work is preserved on the `vicod3x/ai-parking` branch for later reactivation. The active V1 does not start a local model.
 
 ## Public / Private Boundary
 

@@ -57,7 +57,10 @@ def test_v1_service_creates_job_application_from_generic_documents(tmp_path) -> 
     assert draft.application.cover_letter_output_path.endswith(
         f"Lettre_Motivation_Airbus_Data_Scientist_{date_slug}.docx"
     )
-    assert draft.application.export_dir == str(result_dir)
+    expected_export_dir = result_dir / f"Airbus_Data_Scientist_{date_slug}"
+    assert draft.application.export_dir == str(expected_export_dir)
+    assert Path(draft.application.cv_output_path).parent == expected_export_dir
+    assert Path(draft.application.cover_letter_output_path).parent == expected_export_dir
     assert Path(draft.application.cv_output_path).read_text() == "CV"
     assert Path(draft.application.cover_letter_output_path).read_text() == "Lettre"
     assert applications == [draft.application]
@@ -84,6 +87,10 @@ def test_v1_service_creates_freelance_opportunity_from_generic_documents(tmp_pat
     assert draft.application.cover_letter_output_path.endswith(
         f"Proposition_Freelance_Client_test_Dashboard_{date_slug}.docx"
     )
+    expected_export_dir = result_dir / f"Client_test_Dashboard_{date_slug}"
+    assert draft.application.export_dir == str(expected_export_dir)
+    assert Path(draft.application.cv_output_path).parent == expected_export_dir
+    assert Path(draft.application.cover_letter_output_path).parent == expected_export_dir
     assert Path(draft.application.cv_output_path).exists()
     assert Path(draft.application.cover_letter_output_path).exists()
 

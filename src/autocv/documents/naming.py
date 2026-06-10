@@ -54,9 +54,32 @@ def build_result_path(result_dir: Path, filename: str) -> Path:
     return result_dir / filename
 
 
+def build_target_folder_name(*, target_name: str, role_or_mission: str, date: str) -> str:
+    parts = [
+        _slug(target_name),
+        _slug(role_or_mission),
+        _slug(date),
+    ]
+    clean_parts = [part for part in parts if part]
+    return "_".join(clean_parts) or "Document"
+
+
+def build_target_folder_path(
+    result_dir: Path,
+    *,
+    target_name: str,
+    role_or_mission: str,
+    date: str,
+) -> Path:
+    return result_dir / build_target_folder_name(
+        target_name=target_name,
+        role_or_mission=role_or_mission,
+        date=date,
+    )
+
+
 def _slug(value: str) -> str:
     normalized = unicodedata.normalize("NFKD", value)
     ascii_value = normalized.encode("ascii", "ignore").decode("ascii")
     clean_value = re.sub(r"[^A-Za-z0-9]+", "_", ascii_value)
     return clean_value.strip("_")
-

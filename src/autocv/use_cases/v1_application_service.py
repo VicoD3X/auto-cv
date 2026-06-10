@@ -1,7 +1,12 @@
 from dataclasses import dataclass
 from pathlib import Path
 
-from autocv.documents.naming import DocumentKind, build_document_filename, build_result_path
+from autocv.documents.naming import (
+    DocumentKind,
+    build_document_filename,
+    build_result_path,
+    build_target_folder_path,
+)
 from autocv.documents.result_workspace import copy_to_result
 from autocv.documents.source import DocumentSource
 from autocv.domain import ApplicationRecord, FreelanceOpportunity, JobOffer, OpportunityType
@@ -62,12 +67,18 @@ class V1ApplicationService:
             description=description,
             notes=notes,
         )
+        export_dir = self._build_target_folder(
+            target_name=company,
+            role_or_mission=title,
+            date=offer.created_at[:10],
+        )
         cv_output_path = self._build_output_path(
             kind=DocumentKind.CV,
             target_name=company,
             role_or_mission=title,
             date=offer.created_at[:10],
             extension=self.document_source.cv_path.suffix or "pdf",
+            output_dir=export_dir,
         )
         cover_letter_output_path = self._build_output_path(
             kind=DocumentKind.COVER_LETTER,
@@ -75,6 +86,7 @@ class V1ApplicationService:
             role_or_mission=title,
             date=offer.created_at[:10],
             extension=self.document_source.cover_letter_path.suffix or "docx",
+            output_dir=export_dir,
         )
         self._copy_source_documents(cv_output_path, cover_letter_output_path)
 
@@ -85,7 +97,7 @@ class V1ApplicationService:
             cv_output_path=cv_output_path,
             cover_letter_source_path=str(self.document_source.cover_letter_path),
             cover_letter_output_path=cover_letter_output_path,
-            export_dir=str(self.result_dir) if self.result_dir else "",
+            export_dir=str(export_dir) if export_dir else "",
         )
 
         self.job_offers.add(offer)
@@ -113,12 +125,18 @@ class V1ApplicationService:
             budget=budget,
             notes=notes,
         )
+        export_dir = self._build_target_folder(
+            target_name=client,
+            role_or_mission=mission_type,
+            date=opportunity.created_at[:10],
+        )
         cv_output_path = self._build_output_path(
             kind=DocumentKind.CV,
             target_name=client,
             role_or_mission=mission_type,
             date=opportunity.created_at[:10],
             extension=self.document_source.cv_path.suffix or "pdf",
+            output_dir=export_dir,
         )
         proposal_output_path = self._build_output_path(
             kind=DocumentKind.FREELANCE_PROPOSAL,
@@ -126,6 +144,7 @@ class V1ApplicationService:
             role_or_mission=mission_type,
             date=opportunity.created_at[:10],
             extension=self.document_source.cover_letter_path.suffix or "docx",
+            output_dir=export_dir,
         )
         self._copy_source_documents(cv_output_path, proposal_output_path)
 
@@ -136,7 +155,7 @@ class V1ApplicationService:
             cv_output_path=cv_output_path,
             cover_letter_source_path=str(self.document_source.cover_letter_path),
             cover_letter_output_path=proposal_output_path,
-            export_dir=str(self.result_dir) if self.result_dir else "",
+            export_dir=str(export_dir) if export_dir else "",
         )
 
         self.freelance_opportunities.add(opportunity)
@@ -166,8 +185,10 @@ class V1ApplicationService:
         role_or_mission: str,
         date: str,
         extension: str,
+        output_dir: Path | None = None,
     ) -> str:
-        if self.result_dir is None:
+        target_dir = output_dir or self.result_dir
+        if target_dir is None:
             return ""
 
         clean_extension = extension.lstrip(".") or "txt"
@@ -178,4 +199,22 @@ class V1ApplicationService:
             date=date,
             extension=clean_extension,
         )
-        return str(build_result_path(self.result_dir, filename))
+        return str(build_result_path(target_dir, filename))
+
+    def _build_target_folder(
+        self,
+        *,
+        target_name: str,
+        role_or_mission: str,
+        date: str,
+    ) -> Path | None:
+        if self.result_dir is None:
+            return None
+        folder = build_target_folder_path(
+            self.result_dir,
+            target_name=target_name,
+            role_or_mission=role_or_mission,
+            date=date,
+        )
+        folder.mkdir(parents=True, exist_ok=True)
+        return folder

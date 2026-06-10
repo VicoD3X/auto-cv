@@ -26,11 +26,50 @@ Regles :
 - le CV generique est utilise tel quel ;
 - pas de modification IA du CV en V1 ;
 - la lettre generique sert de base editable ;
+- aucun fichier source n'est modifie directement ;
+- toute modification passe par une copie de travail dans `Result` ;
 - les resultats generes restent hors Git ;
 - les resultats de modification, tri et preparation documentaire sont places dans :
 
 ```text
 %USERPROFILE%\Desktop\GENERIQUE PRO\Auto-CV\Result
+```
+
+Chaque cible obtient ensuite son propre dossier :
+
+```text
+Result/<Cible>_<PosteOuMission>_<Date>/
+```
+
+## Atelier de Modification Documentaire
+
+La V1 pivote vers un atelier de modification fiable sans LLM.
+
+Workflow de modification :
+
+```text
+Document source
+  -> Dupliquer & ouvrir
+  -> copie de travail dans le dossier cible
+  -> modification dans Word ou le lecteur PDF
+  -> Finaliser ou Annuler
+```
+
+Regles :
+
+- `Dupliquer & ouvrir` cree une copie de travail DOCX ou PDF dans le dossier cible ;
+- `Finaliser` conserve la copie seulement si son contenu a change ;
+- `Finaliser` place une copie inchangee en pre-suppression ;
+- `Annuler` place la copie de travail en pre-suppression ;
+- l'onglet `Pre-suppression` permet de restaurer ou supprimer definitivement ces copies ;
+- toute entree non restauree est supprimee automatiquement apres 30 jours ;
+- si Word ou le lecteur PDF verrouille le fichier, Auto-CV demande de fermer le document ;
+- la source reste strictement intacte.
+
+La zone de pre-suppression vit dans :
+
+```text
+Result/_PreSuppression
 ```
 
 ## Candidature Salariee
@@ -138,23 +177,20 @@ Formats concernes :
 
 - DOCX ;
 - PDF ;
-- Excel XLSX.
+- Excel XLSX, hors focus de l'atelier de modification.
 
 Conversions prioritaires :
 
 ```text
 DOCX -> PDF
 PDF  -> DOCX
-XLSX -> PDF
-PDF  -> XLSX
 ```
 
 Regles :
 
 - DOCX -> PDF doit servir aux exports propres de CV, lettres et propositions ;
 - PDF -> DOCX doit etre vu comme une reconstruction editable, pas comme une garantie de mise en page parfaite ;
-- XLSX -> PDF doit permettre de produire un export lisible ;
-- PDF -> XLSX doit etre limite aux PDF contenant des tableaux exploitables ;
+- les conversions Excel restent secondaires et peuvent revenir apres stabilisation du workflow DOCX/PDF ;
 - les conversions doivent rester locales ;
 - aucun document personnel converti ne doit etre committe dans le repo public.
 
@@ -162,8 +198,7 @@ Cas d'usage V1 :
 
 - convertir une lettre DOCX en PDF final ;
 - reconstruire un PDF en DOCX editable quand necessaire ;
-- exporter un fichier Excel de suivi en PDF ;
-- extraire un tableau PDF vers un fichier Excel quand le document s'y prete.
+- ouvrir la copie obtenue dans Word pour correction manuelle.
 
 ## Hors Scope V1
 

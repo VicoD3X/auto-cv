@@ -1,4 +1,5 @@
 from dataclasses import replace
+from datetime import UTC, date, datetime, timedelta
 import json
 import os
 from pathlib import Path
@@ -35,10 +36,22 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from autocv.ai import LocalAiServerManager, check_local_ai_status
 from autocv.conversion import ConversionRequest, DocumentFormat, LocalDocumentConverter
-from autocv.documents import DocumentScanner, ScannedDocument
-from autocv.documents.naming import DocumentKind, build_document_filename, build_result_path
+from autocv.documents import (
+    DocumentEditSession,
+    DocumentEditSessionService,
+    DocumentEditSessionStatus,
+    DocumentScanner,
+    TrashEntry,
+    ScannedDocument,
+    copy_to_result,
+)
+from autocv.documents.naming import (
+    DocumentKind,
+    build_document_filename,
+    build_result_path,
+    build_target_folder_path,
+)
 from autocv.domain import ApplicationRecord, ApplicationStatus, OpportunityType
 from autocv.i18n.fr_fr import APPLICATION_STATUS_LABELS
 from autocv.infrastructure import (
@@ -47,10 +60,10 @@ from autocv.infrastructure import (
     JobOfferRepository,
     LocalDatabase,
 )
-from autocv.mail import MailDraft, MailDraftRequest
+from autocv.mail import MailDraft
 from autocv.projects import GitHubProjectContext, GitHubProjectSync
 from autocv.settings.app_settings import AppSettings, SettingsManager, result_dir_for
-from autocv.use_cases import BootstrapWorkspace, MissingDocumentSourceError, V1AiService, V1ApplicationService
+from autocv.use_cases import BootstrapWorkspace, MissingDocumentSourceError, V1ApplicationService
 
 
 PROJECT_MIME_TYPE = "application/x-autocv-github-project"
@@ -60,6 +73,7 @@ VIEW_NAMES = [
     "Candidatures",
     "Freelance",
     "Documents",
+    "Pre-suppression",
     "Projets GitHub",
     "Parametres",
 ]
@@ -72,15 +86,19 @@ class MainWindow(QMainWindow):
             QApplication.instance().setFont(QFont("Segoe UI", 9))
 
         self.settings_manager = SettingsManager(settings.data_dir / "settings.json")
-        self.ai_server = LocalAiServerManager(settings) if settings.local_ai_enabled else None
+        self.ai_server = None
         self.converter = LocalDocumentConverter()
-        self.ai_service = V1AiService() if settings.local_ai_enabled else None
+        self.edit_session_service = DocumentEditSessionService()
+        self.trash_service = self.edit_session_service.trash_service
+        self.ai_service = None
 
         self.current_records: list[ApplicationRecord] = []
         self.job_records: list[ApplicationRecord] = []
         self.freelance_records: list[ApplicationRecord] = []
         self.scanned_documents: list[ScannedDocument] = []
+        self.trash_entries: list[TrashEntry] = []
         self.projects: list[GitHubProjectContext] = []
+        self.current_edit_session: DocumentEditSession | None = None
         self.nav_buttons: dict[str, QPushButton] = {}
         self.chat_histories: dict[str, list[tuple[str, str]]] = {}
         self.selected_projects: dict[str, GitHubProjectContext] = {}
@@ -114,10 +132,11 @@ class MainWindow(QMainWindow):
         self.job_offers = JobOfferRepository(self.database)
         self.freelance_opportunities = FreelanceOpportunityRepository(self.database)
         self.applications = ApplicationRecordRepository(self.database)
-        self.ai_server = LocalAiServerManager(settings) if settings.local_ai_enabled else None
-        self.ai_service = V1AiService() if settings.local_ai_enabled else None
+        self.ai_server = None
+        self.ai_service = None
 
     def _reload_runtime(self, settings: AppSettings) -> None:
+        self.current_edit_session = None
         self._bind_runtime(settings)
         self.refresh()
 
@@ -196,6 +215,7 @@ class MainWindow(QMainWindow):
             self._build_jobs_view,
             self._build_freelance_view,
             self._build_documents_view,
+            self._build_trash_view,
             self._build_projects_view,
             self._build_settings_view,
         ]
@@ -356,37 +376,90 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.documents_table, stretch=1)
 
         selection_actions = QHBoxLayout()
-        set_cv = QPushButton("Definir comme CV")
-        set_cv.setObjectName("ActionButton")
-        set_cv.clicked.connect(lambda: self.set_selected_document("cv"))
-        set_letter = QPushButton("Definir comme lettre")
-        set_letter.setObjectName("ActionButton")
-        set_letter.clicked.connect(lambda: self.set_selected_document("letter"))
-        open_file = QPushButton("Ouvrir")
-        open_file.setObjectName("ActionButton")
-        open_file.clicked.connect(self.open_selected_document)
-        open_result = QPushButton("Ouvrir Result")
-        open_result.setObjectName("ActionButton")
-        open_result.clicked.connect(self.open_result_directory)
-        for button in [set_cv, set_letter, open_file, open_result]:
+        self.set_cv_button = QPushButton("Definir comme CV")
+        self.set_cv_button.setObjectName("ActionButton")
+        self.set_cv_button.clicked.connect(lambda: self.set_selected_document("cv"))
+        self.set_letter_button = QPushButton("Definir comme lettre")
+        self.set_letter_button.setObjectName("ActionButton")
+        self.set_letter_button.clicked.connect(lambda: self.set_selected_document("letter"))
+        self.duplicate_document_button = QPushButton("Dupliquer & ouvrir")
+        self.duplicate_document_button.setObjectName("PrimaryButton")
+        self.duplicate_document_button.clicked.connect(self.duplicate_selected_document_for_edit)
+        self.finalize_document_button = QPushButton("Finaliser modification")
+        self.finalize_document_button.setObjectName("ActionButton")
+        self.finalize_document_button.clicked.connect(self.finalize_current_edit_session)
+        self.cancel_document_button = QPushButton("Annuler et supprimer")
+        self.cancel_document_button.setObjectName("DangerButton")
+        self.cancel_document_button.clicked.connect(self.cancel_current_edit_session)
+        for button in [
+            self.set_cv_button,
+            self.set_letter_button,
+            self.duplicate_document_button,
+            self.finalize_document_button,
+            self.cancel_document_button,
+        ]:
             selection_actions.addWidget(button)
         selection_actions.addStretch()
         layout.addLayout(selection_actions)
 
         conversion_actions = QHBoxLayout()
-        to_pdf = QPushButton("DOCX/XLSX -> PDF")
-        to_pdf.setObjectName("ActionButton")
-        to_pdf.clicked.connect(self.convert_selected_to_pdf)
-        to_docx = QPushButton("PDF -> DOCX")
-        to_docx.setObjectName("ActionButton")
-        to_docx.clicked.connect(lambda: self.convert_selected_pdf(DocumentFormat.DOCX))
-        to_xlsx = QPushButton("PDF -> XLSX")
-        to_xlsx.setObjectName("ActionButton")
-        to_xlsx.clicked.connect(lambda: self.convert_selected_pdf(DocumentFormat.XLSX))
-        for button in [to_pdf, to_docx, to_xlsx]:
+        self.open_target_folder_button = QPushButton("Ouvrir dossier cible")
+        self.open_target_folder_button.setObjectName("ActionButton")
+        self.open_target_folder_button.clicked.connect(self.open_current_target_folder)
+        self.open_result_button_documents = QPushButton("Ouvrir Result")
+        self.open_result_button_documents.setObjectName("ActionButton")
+        self.open_result_button_documents.clicked.connect(self.open_result_directory)
+        self.to_pdf_button = QPushButton("Convertir DOCX -> PDF")
+        self.to_pdf_button.setObjectName("ActionButton")
+        self.to_pdf_button.clicked.connect(self.convert_selected_to_pdf)
+        self.to_docx_button = QPushButton("PDF -> DOCX")
+        self.to_docx_button.setObjectName("ActionButton")
+        self.to_docx_button.clicked.connect(lambda: self.convert_selected_pdf(DocumentFormat.DOCX))
+        for button in [
+            self.open_target_folder_button,
+            self.open_result_button_documents,
+            self.to_pdf_button,
+            self.to_docx_button,
+        ]:
             conversion_actions.addWidget(button)
         conversion_actions.addStretch()
         layout.addLayout(conversion_actions)
+        return page
+
+    def _build_trash_view(self) -> QWidget:
+        page, layout, header = self._new_page(
+            "Pre-suppression",
+            "Copies annulees ou obsoletes conservees avant suppression definitive",
+        )
+
+        refresh_button = QPushButton("Rafraichir")
+        refresh_button.setObjectName("SecondaryButton")
+        refresh_button.clicked.connect(self.refresh)
+        open_trash = QPushButton("Ouvrir dossier")
+        open_trash.setObjectName("SecondaryButton")
+        open_trash.clicked.connect(self.open_trash_directory)
+        header.addWidget(open_trash)
+        header.addWidget(refresh_button)
+
+        self.trash_table = QTableWidget(0, 7)
+        self.trash_table.setObjectName("ApplicationTable")
+        self.trash_table.setHorizontalHeaderLabels(
+            ["Raison", "Fichier", "Date", "Suppression auto", "Taille", "Chemin original", "Pre-suppression"]
+        )
+        self._configure_table(self.trash_table)
+        layout.addWidget(self.trash_table, stretch=1)
+
+        actions = QHBoxLayout()
+        self.restore_trash_button = QPushButton("Restaurer")
+        self.restore_trash_button.setObjectName("PrimaryButton")
+        self.restore_trash_button.clicked.connect(self.restore_selected_trash_entry)
+        self.delete_trash_button = QPushButton("Supprimer definitivement")
+        self.delete_trash_button.setObjectName("DangerButton")
+        self.delete_trash_button.clicked.connect(self.delete_selected_trash_entry)
+        actions.addWidget(self.restore_trash_button)
+        actions.addWidget(self.delete_trash_button)
+        actions.addStretch()
+        layout.addLayout(actions)
         return page
 
     def _build_projects_view(self) -> QWidget:
@@ -517,26 +590,33 @@ class MainWindow(QMainWindow):
         actions_layout = QVBoxLayout(actions)
         actions_layout.setContentsMargins(12, 12, 12, 12)
         actions_layout.setSpacing(8)
-        actions_title = QLabel("Actions V1")
+        actions_title = QLabel("Atelier documentaire")
         actions_title.setObjectName("ActionTitle")
         actions_layout.addWidget(actions_title)
         self.adapt_letter_button = QPushButton("Adapter la lettre")
         self.adapt_letter_button.setObjectName("ActionButton")
         self.adapt_letter_button.setEnabled(False)
         self.adapt_letter_button.clicked.connect(self.adapt_selected_text)
+        self.create_pack_button = QPushButton("Creer pack candidature")
+        self.create_pack_button.setObjectName("PrimaryButton")
+        self.create_pack_button.clicked.connect(self.create_selected_document_pack)
         self.prepare_mail_button = QPushButton("Preparer le mail")
         self.prepare_mail_button.setObjectName("ActionButton")
         self.prepare_mail_button.clicked.connect(self.prepare_selected_mail)
         self.insert_project_button = QPushButton("Inserer projet")
         self.insert_project_button.setObjectName("ActionButton")
         self.insert_project_button.clicked.connect(self.insert_selected_project_from_table)
+        self.open_target_button = QPushButton("Ouvrir dossier cible")
+        self.open_target_button.setObjectName("ActionButton")
+        self.open_target_button.clicked.connect(self.open_current_target_folder)
         self.open_result_button = QPushButton("Ouvrir Result")
         self.open_result_button.setObjectName("ActionButton")
         self.open_result_button.clicked.connect(self.open_result_directory)
         for button in [
-            self.adapt_letter_button,
+            self.create_pack_button,
             self.prepare_mail_button,
             self.insert_project_button,
+            self.open_target_button,
             self.open_result_button,
         ]:
             button.setMinimumHeight(36)
@@ -584,6 +664,7 @@ class MainWindow(QMainWindow):
         self.job_records = self.applications.list_jobs()
         self.freelance_records = self.applications.list_freelance()
         self.scanned_documents = self._scan_documents()
+        self.trash_entries = self.trash_service.list_entries(self.settings.result_dir)
         self.projects = GitHubProjectSync(
             owner=self.settings.github_owner,
             cache_dir=self.settings.project_context_cache_dir,
@@ -593,6 +674,7 @@ class MainWindow(QMainWindow):
         self._populate_records_table(self.jobs_table, self.job_records)
         self._populate_records_table(self.freelance_table, self.freelance_records)
         self._populate_documents_table()
+        self._populate_trash_table()
         self._populate_projects_table()
         self._update_metrics(records)
         self._update_source_status()
@@ -670,6 +752,23 @@ class MainWindow(QMainWindow):
         if self.scanned_documents:
             self.documents_table.selectRow(0)
 
+    def _populate_trash_table(self) -> None:
+        self.trash_table.setRowCount(len(self.trash_entries))
+        for row, entry in enumerate(self.trash_entries):
+            cells = [
+                self._trash_reason_label(entry),
+                entry.original_path.name,
+                entry.deleted_at,
+                self._trash_expiration_label(entry),
+                f"{entry.size} o",
+                str(entry.original_path),
+                str(entry.trash_path),
+            ]
+            self._set_table_row(self.trash_table, row, cells, entry.entry_id)
+        self.trash_table.resizeRowsToContents()
+        if self.trash_entries:
+            self.trash_table.selectRow(0)
+
     def _populate_projects_table(self) -> None:
         self.projects_table.setRowCount(len(self.projects))
         for row, project in enumerate(self.projects):
@@ -728,22 +827,12 @@ class MainWindow(QMainWindow):
         self.github_owner_input.setText(self.settings.github_owner)
 
     def _update_ai_status(self) -> None:
-        if not self.settings.local_ai_enabled:
-            self.local_ai_status.setText("IA locale: desactivee")
-            self.chat_input.setEnabled(False)
-            self.chat_send_button.setEnabled(False)
-            self.adapt_letter_button.setEnabled(False)
-            self.prepare_mail_button.setEnabled(True)
-            return
-        self.chat_input.setEnabled(True)
-        self.chat_send_button.setEnabled(True)
-        self.adapt_letter_button.setEnabled(True)
+        self.local_ai_status.setText("IA locale: desactivee - V1 sans LLM")
+        self.chat_input.setEnabled(False)
+        self.chat_send_button.setEnabled(False)
+        self.adapt_letter_button.setEnabled(False)
+        self.create_pack_button.setEnabled(True)
         self.prepare_mail_button.setEnabled(True)
-        status = check_local_ai_status(self.settings.local_ai_base_url)
-        if status.online:
-            self.local_ai_status.setText("IA locale: online")
-        else:
-            self.local_ai_status.setText("IA locale: standby")
 
     def update_detail_from_selection(self) -> None:
         record = self._selected_record_from_table(self.table, self.current_records)
@@ -885,6 +974,166 @@ class MainWindow(QMainWindow):
         self.settings.result_dir.mkdir(parents=True, exist_ok=True)
         self._open_path(self.settings.result_dir)
 
+    def open_trash_directory(self) -> None:
+        trash_dir = self.trash_service.trash_dir(self.settings.result_dir)
+        trash_dir.mkdir(parents=True, exist_ok=True)
+        self._open_path(trash_dir)
+
+    def restore_selected_trash_entry(self) -> None:
+        entry = self._selected_trash_entry()
+        if entry is None:
+            QMessageBox.information(self, "Selection", "Selectionne un fichier en pre-suppression.")
+            return
+        try:
+            restored_path = self.trash_service.restore(
+                result_dir=self.settings.result_dir,
+                entry_id=entry.entry_id,
+            )
+        except OSError as exc:
+            QMessageBox.warning(self, "Restauration impossible", str(exc))
+            return
+        QMessageBox.information(self, "Fichier restaure", f"Restaure dans:\n{restored_path}")
+        self.refresh()
+
+    def delete_selected_trash_entry(self) -> None:
+        entry = self._selected_trash_entry()
+        if entry is None:
+            QMessageBox.information(self, "Selection", "Selectionne un fichier en pre-suppression.")
+            return
+        answer = QMessageBox.question(
+            self,
+            "Suppression definitive",
+            f"Supprimer definitivement {entry.original_path.name} ?",
+        )
+        if answer != QMessageBox.StandardButton.Yes:
+            return
+        try:
+            self.trash_service.delete_permanently(
+                result_dir=self.settings.result_dir,
+                entry_id=entry.entry_id,
+            )
+        except OSError as exc:
+            QMessageBox.warning(self, "Suppression impossible", str(exc))
+            return
+        QMessageBox.information(self, "Suppression", "Fichier supprime definitivement.")
+        self.refresh()
+
+    def duplicate_selected_document_for_edit(self) -> None:
+        if (
+            self.current_edit_session is not None
+            and self.current_edit_session.status == DocumentEditSessionStatus.OPEN
+            and self.current_edit_session.working_copy_path.exists()
+        ):
+            QMessageBox.information(
+                self,
+                "Session en cours",
+                "Finalise ou annule la modification en cours avant d'ouvrir une nouvelle copie.",
+            )
+            return
+
+        document = self._selected_document()
+        if document is None:
+            QMessageBox.information(self, "Selection", "Selectionne un document.")
+            return
+        if document.path.suffix.lower() not in {".docx", ".pdf"}:
+            QMessageBox.warning(
+                self,
+                "Document non modifiable",
+                "La V1 de modification directe prend en charge DOCX et PDF.",
+            )
+            return
+
+        target_name, role, action_date = self._document_action_context(document)
+        try:
+            session = self.edit_session_service.create_working_copy(
+                source_path=document.path,
+                result_dir=self.settings.result_dir,
+                kind=self._document_kind_for_working_copy(document),
+                target_name=target_name,
+                role_or_mission=role,
+                date=action_date,
+            )
+        except (OSError, ValueError) as exc:
+            QMessageBox.warning(self, "Copie impossible", str(exc))
+            return
+
+        self.current_edit_session = session
+        self._append_chat_message("system", f"Copie de travail creee:\n{session.working_copy_path}")
+        try:
+            self._open_path(session.working_copy_path)
+        except OSError as exc:
+            QMessageBox.warning(self, "Ouverture impossible", str(exc))
+            return
+        self.refresh()
+
+    def finalize_current_edit_session(self) -> None:
+        if self.current_edit_session is None:
+            QMessageBox.information(self, "Session", "Aucune copie de travail active.")
+            return
+
+        session = self.edit_session_service.finalize_session(self.current_edit_session)
+        self.current_edit_session = session if session.status == DocumentEditSessionStatus.BLOCKED else None
+        if session.status == DocumentEditSessionStatus.KEPT:
+            QMessageBox.information(
+                self,
+                "Modification finalisee",
+                f"Copie conservee dans:\n{session.working_copy_path}",
+            )
+        elif session.status == DocumentEditSessionStatus.UNCHANGED_DELETED:
+            QMessageBox.information(
+                self,
+                "Aucune modification",
+                "La copie etait inchangee et a ete placee en pre-suppression.",
+            )
+        elif session.status == DocumentEditSessionStatus.DELETED:
+            QMessageBox.information(self, "Session", "La copie de travail n'existe deja plus.")
+        else:
+            QMessageBox.warning(
+                self,
+                "Fichier verrouille",
+                "Ferme Word ou le lecteur PDF, puis relance la finalisation.",
+            )
+        self.refresh()
+
+    def cancel_current_edit_session(self) -> None:
+        if self.current_edit_session is None:
+            QMessageBox.information(self, "Session", "Aucune copie de travail active.")
+            return
+
+        session = self.edit_session_service.cancel_session(self.current_edit_session)
+        self.current_edit_session = session if session.status == DocumentEditSessionStatus.BLOCKED else None
+        if session.status == DocumentEditSessionStatus.BLOCKED:
+            QMessageBox.warning(
+                self,
+                "Fichier verrouille",
+                "Ferme Word ou le lecteur PDF, puis relance l'annulation.",
+            )
+        else:
+            QMessageBox.information(
+                self,
+                "Session annulee",
+                "La copie de travail a ete placee en pre-suppression.",
+            )
+        self.refresh()
+
+    def open_current_target_folder(self) -> None:
+        record = self._selected_visible_record()
+        if record is not None:
+            target_folder = self._target_folder_for_record(record)
+        elif self.current_edit_session is not None:
+            target_folder = self.current_edit_session.target_folder
+        else:
+            document = self._selected_document()
+            target_name, role, action_date = self._document_action_context(document)
+            target_folder = build_target_folder_path(
+                self.settings.result_dir,
+                target_name=target_name,
+                role_or_mission=role,
+                date=action_date,
+            )
+            target_folder.mkdir(parents=True, exist_ok=True)
+        self._open_path(target_folder)
+
     def convert_selected_to_pdf(self) -> None:
         document = self._selected_document()
         if document is None:
@@ -893,12 +1142,10 @@ class MainWindow(QMainWindow):
         extension = document.path.suffix.lower()
         if extension == ".docx":
             source_format = DocumentFormat.DOCX
-        elif extension in {".xlsx", ".xls"}:
-            source_format = DocumentFormat.XLSX
         else:
-            QMessageBox.warning(self, "Conversion", "Selectionne un DOCX, XLSX ou XLS.")
+            QMessageBox.warning(self, "Conversion", "Selectionne un DOCX.")
             return
-        self._convert_document(document.path, source_format, DocumentFormat.PDF)
+        self._convert_document(document, source_format, DocumentFormat.PDF)
 
     def convert_selected_pdf(self, target_format: DocumentFormat) -> None:
         document = self._selected_document()
@@ -908,18 +1155,18 @@ class MainWindow(QMainWindow):
         if document.path.suffix.lower() != ".pdf":
             QMessageBox.warning(self, "Conversion", "Selectionne un PDF.")
             return
-        self._convert_document(document.path, DocumentFormat.PDF, target_format)
+        self._convert_document(document, DocumentFormat.PDF, target_format)
 
     def _convert_document(
         self,
-        source_path: Path,
+        document: ScannedDocument,
         source_format: DocumentFormat,
         target_format: DocumentFormat,
     ) -> None:
-        output_path = self._conversion_output_path(source_path, target_format)
+        output_path = self._conversion_output_path(document, target_format)
         response = self.converter.convert(
             ConversionRequest(
-                source_path=source_path,
+                source_path=document.path,
                 output_path=output_path,
                 source_format=source_format,
                 target_format=target_format,
@@ -931,12 +1178,19 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Conversion", response.message)
         self.refresh()
 
-    def _conversion_output_path(self, source_path: Path, target_format: DocumentFormat) -> Path:
-        self.settings.result_dir.mkdir(parents=True, exist_ok=True)
-        candidate = self.settings.result_dir / f"{source_path.stem}_converted.{target_format.value}"
+    def _conversion_output_path(self, document: ScannedDocument, target_format: DocumentFormat) -> Path:
+        target_name, role, action_date = self._document_action_context(document)
+        target_folder = build_target_folder_path(
+            self.settings.result_dir,
+            target_name=target_name,
+            role_or_mission=role,
+            date=action_date,
+        )
+        target_folder.mkdir(parents=True, exist_ok=True)
+        candidate = target_folder / f"{document.path.stem}_converted.{target_format.value}"
         index = 2
         while candidate.exists():
-            candidate = self.settings.result_dir / f"{source_path.stem}_converted_{index}.{target_format.value}"
+            candidate = target_folder / f"{document.path.stem}_converted_{index}.{target_format.value}"
             index += 1
         return candidate
 
@@ -969,30 +1223,7 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "GitHub", result.message)
 
     def send_chat_message(self) -> None:
-        if not self.settings.local_ai_enabled:
-            return
-        message = self.chat_input.text().strip()
-        if not message:
-            return
-        if not self._ensure_ai_ready():
-            return
-        record = self._selected_visible_record()
-        target_name, role = self._chat_target(record)
-        context = self._context_for_record(record) if record else ""
-        self._append_chat_message("user", message)
-        self.chat_input.clear()
-
-        response = self.ai_service.chat(
-            message=message,
-            record=record,
-            target_name=target_name,
-            role_or_mission=role,
-            context=context,
-            selected_project=self._selected_project_for_chat(),
-            chat_history=self._chat_history_text(),
-        )
-        self._append_chat_message("assistant", response.text)
-        self._schedule_ai_idle_stop()
+        self.local_ai_status.setText("IA locale: desactivee - V1 sans LLM")
 
     def insert_selected_project_from_table(self) -> None:
         selected = (
@@ -1027,43 +1258,76 @@ class MainWindow(QMainWindow):
         if record is None:
             QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
             return
-        if not self.settings.local_ai_enabled:
-            QMessageBox.information(
-                self,
-                "IA desactivee",
-                "L'adaptation automatique de lettre est desactivee pour la V1 sans LLM.",
-            )
-            return
-        if not self._ensure_ai_ready():
-            return
-        if self.ai_service is None:
-            QMessageBox.warning(self, "IA locale indisponible", "Service IA non initialise.")
+        QMessageBox.information(
+            self,
+            "IA desactivee",
+            "L'adaptation automatique de lettre est desactivee pour la V1 sans LLM.",
+        )
+
+    def create_selected_document_pack(self) -> None:
+        record = self._selected_visible_record()
+        if record is None:
+            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
             return
 
         target_name, role = self._target_for_record(record)
-        context = self._context_for_record(record)
-        response = self.ai_service.generate_cover_letter_docx(
-            record=record,
-            target_name=target_name,
-            role_or_mission=role,
-            context=context,
-            result_dir=self.settings.result_dir,
-            selected_project=self._selected_project_for_chat(),
-            chat_history=self._chat_history_text(),
+        target_folder = self._target_folder_for_record(record)
+        date_text = record.created_at[:10]
+        letter_kind = (
+            DocumentKind.FREELANCE_PROPOSAL
+            if record.opportunity_type == OpportunityType.FREELANCE
+            else DocumentKind.COVER_LETTER
         )
-        if not response.available:
-            self._append_chat_message("assistant", response.text)
-            QMessageBox.warning(self, "IA locale indisponible", response.text)
+        try:
+            cv_path = self._ensure_pack_document(
+                target_folder=target_folder,
+                kind=DocumentKind.CV,
+                target_name=target_name,
+                role_or_mission=role,
+                date_text=date_text,
+                source_path=Path(record.cv_path),
+                previous_output_path=Path(record.cv_output_path) if record.cv_output_path else None,
+            )
+            letter_path = self._ensure_pack_document(
+                target_folder=target_folder,
+                kind=letter_kind,
+                target_name=target_name,
+                role_or_mission=role,
+                date_text=date_text,
+                source_path=Path(record.cover_letter_source_path),
+                previous_output_path=(
+                    Path(record.cover_letter_output_path)
+                    if record.cover_letter_output_path
+                    else None
+                ),
+            )
+            draft = self._deterministic_mail_draft(record, target_name, role)
+            mail_path = self._save_mail_preview(
+                result_dir=target_folder,
+                kind=DocumentKind.EMAIL_DRAFT,
+                target_name=target_name,
+                role_or_mission=role,
+                date=date_text,
+                content=f"Objet: {draft.subject}\n\nCorps:\n{draft.body}",
+            )
+        except OSError as exc:
+            QMessageBox.warning(self, "Pack impossible", str(exc))
             return
 
-        message = (
-            "Lettre ajustee generee dans Result:\n"
-            f"{response.output_path}\n\n"
-            "Le document generique source n'a pas ete modifie."
+        self._append_chat_message(
+            "system",
+            "\n".join(
+                [
+                    "Pack documentaire pret:",
+                    str(cv_path),
+                    str(letter_path),
+                    str(mail_path),
+                ]
+            ),
         )
-        self._append_chat_message("assistant", message)
-        QMessageBox.information(self, "Lettre generee", message)
-        self._schedule_ai_idle_stop()
+        QMessageBox.information(self, "Pack cree", f"Pack pret dans:\n{target_folder}")
+        self._open_path(target_folder)
+        self.refresh()
 
     def prepare_selected_mail(self) -> None:
         record = self._selected_visible_record()
@@ -1072,34 +1336,12 @@ class MainWindow(QMainWindow):
             return
 
         target_name, role = self._target_for_record(record)
-        if self.settings.local_ai_enabled:
-            if not self._ensure_ai_ready():
-                return
-            if self.ai_service is None:
-                QMessageBox.warning(self, "IA locale indisponible", "Service IA non initialise.")
-                return
-            draft = self.ai_service.draft_mail(
-                request=MailDraftRequest(
-                    opportunity_type=record.opportunity_type,
-                    target_name=target_name,
-                    role_or_mission=role,
-                    context=self._context_for_record(record),
-                    attachment_paths=(
-                        record.cv_output_path or record.cv_path,
-                        record.cover_letter_output_path or record.cover_letter_source_path,
-                    ),
-                )
-            )
-            if not draft.available:
-                self._append_chat_message("assistant", draft.body)
-                QMessageBox.warning(self, "IA locale indisponible", draft.body)
-                return
-        else:
-            draft = self._deterministic_mail_draft(record, target_name, role)
+        draft = self._deterministic_mail_draft(record, target_name, role)
 
         content = f"Objet: {draft.subject}\n\nCorps:\n{draft.body}"
+        target_folder = self._target_folder_for_record(record)
         output = self._save_mail_preview(
-            result_dir=self.settings.result_dir,
+            result_dir=target_folder,
             kind=DocumentKind.EMAIL_DRAFT,
             target_name=target_name,
             role_or_mission=role,
@@ -1114,8 +1356,30 @@ class MainWindow(QMainWindow):
             parent=self,
         ).exec()
         self._append_chat_message("assistant", f"Mail prepare:\nObjet: {draft.subject}\n\n{draft.body}")
-        if self.settings.local_ai_enabled:
-            self._schedule_ai_idle_stop()
+
+    def _ensure_pack_document(
+        self,
+        *,
+        target_folder: Path,
+        kind: DocumentKind,
+        target_name: str,
+        role_or_mission: str,
+        date_text: str,
+        source_path: Path,
+        previous_output_path: Path | None,
+    ) -> Path:
+        source_candidate = previous_output_path if previous_output_path and previous_output_path.exists() else source_path
+        filename = build_document_filename(
+            kind=kind,
+            target_name=target_name,
+            role_or_mission=role_or_mission,
+            date=date_text,
+            extension=source_candidate.suffix or source_path.suffix or "pdf",
+        )
+        target_path = build_result_path(target_folder, filename)
+        if target_path.exists():
+            return target_path
+        return copy_to_result(source_candidate, target_path)
 
     def _deterministic_mail_draft(
         self,
@@ -1300,6 +1564,33 @@ class MainWindow(QMainWindow):
             return None
         return self.scanned_documents[row]
 
+    def _selected_trash_entry(self) -> TrashEntry | None:
+        selected = self.trash_table.selectionModel().selectedRows() if self.trash_table.selectionModel() else []
+        if not selected:
+            return None
+        row = selected[0].row()
+        if row < 0 or row >= len(self.trash_entries):
+            return None
+        return self.trash_entries[row]
+
+    def _trash_reason_label(self, entry: TrashEntry) -> str:
+        labels = {
+            "canceled_edit": "Modification annulee",
+            "unchanged_edit": "Copie inchangee",
+            "obsolete": "Obsolete",
+        }
+        return labels.get(entry.reason.value, entry.reason.value)
+
+    def _trash_expiration_label(self, entry: TrashEntry) -> str:
+        try:
+            deleted_at = datetime.fromisoformat(entry.deleted_at)
+        except ValueError:
+            return "30 jours"
+        if deleted_at.tzinfo is None:
+            deleted_at = deleted_at.replace(tzinfo=UTC)
+        expiration = deleted_at.astimezone(UTC) + timedelta(days=self.trash_service.retention_days)
+        return expiration.date().isoformat()
+
     def _context_for_record(self, record: ApplicationRecord) -> str:
         if record.opportunity_type == OpportunityType.JOB:
             offer = self.job_offers.get(record.opportunity_id)
@@ -1341,6 +1632,46 @@ class MainWindow(QMainWindow):
         if opportunity is None:
             return "Mission inconnue", "-"
         return opportunity.client, opportunity.mission_type
+
+    def _target_folder_for_record(self, record: ApplicationRecord) -> Path:
+        target_name, role = self._target_for_record(record)
+        expected = build_target_folder_path(
+            self.settings.result_dir,
+            target_name=target_name,
+            role_or_mission=role,
+            date=record.created_at[:10],
+        )
+        if record.export_dir:
+            candidate = Path(record.export_dir)
+            try:
+                if candidate.resolve() != self.settings.result_dir.resolve():
+                    expected = candidate
+            except OSError:
+                expected = candidate
+        expected.mkdir(parents=True, exist_ok=True)
+        return expected
+
+    def _document_action_context(self, document: ScannedDocument | None) -> tuple[str, str, str]:
+        record = self._selected_visible_record()
+        if record is not None:
+            target_name, role = self._target_for_record(record)
+            return target_name, role, record.created_at[:10]
+
+        if document is not None:
+            return document.path.stem, "Document", date.today().isoformat()
+
+        return "Auto-CV", "Document", date.today().isoformat()
+
+    def _document_kind_for_working_copy(self, document: ScannedDocument) -> DocumentKind:
+        if document.selected_as_cv or document.kind.value == "cv":
+            return DocumentKind.CV
+        if document.selected_as_cover_letter or document.kind.value == "cover_letter":
+            return DocumentKind.COVER_LETTER
+        if document.path.suffix.lower() == ".pdf":
+            return DocumentKind.CV
+        if document.path.suffix.lower() == ".docx":
+            return DocumentKind.COVER_LETTER
+        return DocumentKind.NOTES
 
     def _status_label(self, status: ApplicationStatus) -> str:
         return APPLICATION_STATUS_LABELS.get(status.value, status.value)
