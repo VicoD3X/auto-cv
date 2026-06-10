@@ -7,12 +7,15 @@ from autocv.ai.model_profile import (
     LocalModelQuantization,
     QWEN3_14B_Q4_PROFILE,
 )
+from autocv.ai.server_manager import LocalAiServerManager, LocalAiServerResult
 from autocv.ai.status import LocalAiStatus, check_local_ai_status
 
 __all__ = [
     "LocalAiRequest",
     "LocalAiResponse",
     "LocalAiRunner",
+    "LocalAiServerManager",
+    "LocalAiServerResult",
     "LocalAiStatus",
     "LocalModelProfile",
     "LocalModelQuantization",

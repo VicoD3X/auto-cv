@@ -4,8 +4,9 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from time import monotonic
 
-from PySide6.QtCore import QMimeData, Qt, Signal
+from PySide6.QtCore import QMimeData, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QDrag, QFont, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
@@ -34,7 +35,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
-from autocv.ai import check_local_ai_status
+from autocv.ai import LocalAiServerManager, check_local_ai_status
 from autocv.conversion import ConversionRequest, DocumentFormat, LocalDocumentConverter
 from autocv.documents import DocumentScanner, ScannedDocument
 from autocv.documents.naming import DocumentKind
@@ -71,6 +72,7 @@ class MainWindow(QMainWindow):
             QApplication.instance().setFont(QFont("Segoe UI", 9))
 
         self.settings_manager = SettingsManager(settings.data_dir / "settings.json")
+        self.ai_server = LocalAiServerManager(settings)
         self.converter = LocalDocumentConverter()
         self.ai_service = V1AiService()
 
@@ -82,6 +84,11 @@ class MainWindow(QMainWindow):
         self.nav_buttons: dict[str, QPushButton] = {}
         self.chat_histories: dict[str, list[tuple[str, str]]] = {}
         self.selected_projects: dict[str, GitHubProjectContext] = {}
+        self.ai_last_activity = 0.0
+        self.ai_idle_timeout_ms = 10 * 60 * 1000
+        self.ai_idle_timer = QTimer(self)
+        self.ai_idle_timer.setSingleShot(True)
+        self.ai_idle_timer.timeout.connect(self.stop_ai_after_idle)
 
         self._bind_runtime(settings)
 
@@ -107,6 +114,7 @@ class MainWindow(QMainWindow):
         self.job_offers = JobOfferRepository(self.database)
         self.freelance_opportunities = FreelanceOpportunityRepository(self.database)
         self.applications = ApplicationRecordRepository(self.database)
+        self.ai_server = LocalAiServerManager(settings)
 
     def _reload_runtime(self, settings: AppSettings) -> None:
         self._bind_runtime(settings)
@@ -713,7 +721,7 @@ class MainWindow(QMainWindow):
         if status.online:
             self.local_ai_status.setText("IA locale: online")
         else:
-            self.local_ai_status.setText("IA locale: offline")
+            self.local_ai_status.setText("IA locale: standby")
 
     def update_detail_from_selection(self) -> None:
         record = self._selected_record_from_table(self.table, self.current_records)
@@ -942,6 +950,8 @@ class MainWindow(QMainWindow):
         message = self.chat_input.text().strip()
         if not message:
             return
+        if not self._ensure_ai_ready():
+            return
         record = self._selected_visible_record()
         target_name, role = self._chat_target(record)
         context = self._context_for_record(record) if record else ""
@@ -958,6 +968,7 @@ class MainWindow(QMainWindow):
             chat_history=self._chat_history_text(),
         )
         self._append_chat_message("assistant", response.text)
+        self._schedule_ai_idle_stop()
 
     def insert_selected_project_from_table(self) -> None:
         selected = (
@@ -992,6 +1003,8 @@ class MainWindow(QMainWindow):
         if record is None:
             QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
             return
+        if not self._ensure_ai_ready():
+            return
 
         target_name, role = self._target_for_record(record)
         context = self._context_for_record(record)
@@ -1016,11 +1029,14 @@ class MainWindow(QMainWindow):
         )
         self._append_chat_message("assistant", message)
         QMessageBox.information(self, "Lettre generee", message)
+        self._schedule_ai_idle_stop()
 
     def prepare_selected_mail(self) -> None:
         record = self._selected_visible_record()
         if record is None:
             QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            return
+        if not self._ensure_ai_ready():
             return
 
         target_name, role = self._target_for_record(record)
@@ -1058,6 +1074,36 @@ class MainWindow(QMainWindow):
             parent=self,
         ).exec()
         self._append_chat_message("assistant", f"Mail prepare:\nObjet: {draft.subject}\n\n{draft.body}")
+        self._schedule_ai_idle_stop()
+
+    def _ensure_ai_ready(self) -> bool:
+        self.local_ai_status.setText("IA locale: demarrage...")
+        QApplication.processEvents()
+        result = self.ai_server.ensure_running()
+        self._update_ai_status()
+        if result.available:
+            self.ai_last_activity = monotonic()
+            return True
+        self._append_chat_message("assistant", result.message)
+        QMessageBox.warning(self, "IA locale indisponible", result.message)
+        return False
+
+    def _schedule_ai_idle_stop(self) -> None:
+        self.ai_last_activity = monotonic()
+        self.ai_idle_timer.start(self.ai_idle_timeout_ms)
+
+    def stop_ai_after_idle(self) -> None:
+        if monotonic() - self.ai_last_activity < (self.ai_idle_timeout_ms / 1000):
+            self._schedule_ai_idle_stop()
+            return
+        if self.ai_server.is_online():
+            self.ai_server.stop()
+        self._update_ai_status()
+
+    def closeEvent(self, event) -> None:
+        if self.ai_server.is_online():
+            self.ai_server.stop()
+        super().closeEvent(event)
 
     def _append_chat_message(self, role: str, text: str) -> None:
         key = self._chat_key()
