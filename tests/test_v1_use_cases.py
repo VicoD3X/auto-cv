@@ -1,4 +1,5 @@
 from dataclasses import replace
+from pathlib import Path
 
 import pytest
 
@@ -57,6 +58,8 @@ def test_v1_service_creates_job_application_from_generic_documents(tmp_path) -> 
         f"Lettre_Motivation_Airbus_Data_Scientist_{date_slug}.docx"
     )
     assert draft.application.export_dir == str(result_dir)
+    assert Path(draft.application.cv_output_path).read_text() == "CV"
+    assert Path(draft.application.cover_letter_output_path).read_text() == "Lettre"
     assert applications == [draft.application]
 
 
@@ -81,6 +84,8 @@ def test_v1_service_creates_freelance_opportunity_from_generic_documents(tmp_pat
     assert draft.application.cover_letter_output_path.endswith(
         f"Proposition_Freelance_Client_test_Dashboard_{date_slug}.docx"
     )
+    assert Path(draft.application.cv_output_path).exists()
+    assert Path(draft.application.cover_letter_output_path).exists()
 
 
 def test_v1_service_requires_generic_documents(tmp_path) -> None:

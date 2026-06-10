@@ -6,6 +6,7 @@ from autocv.domain import (
     OpportunityType,
 )
 from autocv.infrastructure.database import LocalDatabase
+from autocv.domain.entities import now_utc_iso
 
 
 class JobOfferRepository:
@@ -136,6 +137,39 @@ class ApplicationRecordRepository:
         with self.database.connection() as connection:
             rows = connection.execute(
                 "SELECT * FROM application_records ORDER BY created_at DESC",
+            ).fetchall()
+        return [_application_record_from_row(row) for row in rows]
+
+    def list_jobs(self) -> list[ApplicationRecord]:
+        return self._list_by_type(OpportunityType.JOB)
+
+    def list_freelance(self) -> list[ApplicationRecord]:
+        return self._list_by_type(OpportunityType.FREELANCE)
+
+    def update_status(self, record_id: str, status: ApplicationStatus) -> None:
+        with self.database.connection() as connection:
+            connection.execute(
+                """
+                UPDATE application_records
+                SET status = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (status.value, now_utc_iso(), record_id),
+            )
+
+    def delete(self, record_id: str) -> None:
+        with self.database.connection() as connection:
+            connection.execute("DELETE FROM application_records WHERE id = ?", (record_id,))
+
+    def _list_by_type(self, opportunity_type: OpportunityType) -> list[ApplicationRecord]:
+        with self.database.connection() as connection:
+            rows = connection.execute(
+                """
+                SELECT * FROM application_records
+                WHERE opportunity_type = ?
+                ORDER BY created_at DESC
+                """,
+                (opportunity_type.value,),
             ).fetchall()
         return [_application_record_from_row(row) for row in rows]
 

@@ -2,6 +2,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from autocv.documents.naming import DocumentKind, build_document_filename, build_result_path
+from autocv.documents.result_workspace import copy_to_result
 from autocv.documents.source import DocumentSource
 from autocv.domain import ApplicationRecord, FreelanceOpportunity, JobOffer, OpportunityType
 from autocv.infrastructure import (
@@ -61,25 +62,29 @@ class V1ApplicationService:
             description=description,
             notes=notes,
         )
+        cv_output_path = self._build_output_path(
+            kind=DocumentKind.CV,
+            target_name=company,
+            role_or_mission=title,
+            date=offer.created_at[:10],
+            extension=self.document_source.cv_path.suffix or "pdf",
+        )
+        cover_letter_output_path = self._build_output_path(
+            kind=DocumentKind.COVER_LETTER,
+            target_name=company,
+            role_or_mission=title,
+            date=offer.created_at[:10],
+            extension=self.document_source.cover_letter_path.suffix or "docx",
+        )
+        self._copy_source_documents(cv_output_path, cover_letter_output_path)
+
         application = ApplicationRecord.create(
             opportunity_type=OpportunityType.JOB,
             opportunity_id=offer.id,
             cv_path=str(self.document_source.cv_path),
-            cv_output_path=self._build_output_path(
-                kind=DocumentKind.CV,
-                target_name=company,
-                role_or_mission=title,
-                date=offer.created_at[:10],
-                extension="pdf",
-            ),
+            cv_output_path=cv_output_path,
             cover_letter_source_path=str(self.document_source.cover_letter_path),
-            cover_letter_output_path=self._build_output_path(
-                kind=DocumentKind.COVER_LETTER,
-                target_name=company,
-                role_or_mission=title,
-                date=offer.created_at[:10],
-                extension="docx",
-            ),
+            cover_letter_output_path=cover_letter_output_path,
             export_dir=str(self.result_dir) if self.result_dir else "",
         )
 
@@ -108,25 +113,29 @@ class V1ApplicationService:
             budget=budget,
             notes=notes,
         )
+        cv_output_path = self._build_output_path(
+            kind=DocumentKind.CV,
+            target_name=client,
+            role_or_mission=mission_type,
+            date=opportunity.created_at[:10],
+            extension=self.document_source.cv_path.suffix or "pdf",
+        )
+        proposal_output_path = self._build_output_path(
+            kind=DocumentKind.FREELANCE_PROPOSAL,
+            target_name=client,
+            role_or_mission=mission_type,
+            date=opportunity.created_at[:10],
+            extension=self.document_source.cover_letter_path.suffix or "docx",
+        )
+        self._copy_source_documents(cv_output_path, proposal_output_path)
+
         application = ApplicationRecord.create(
             opportunity_type=OpportunityType.FREELANCE,
             opportunity_id=opportunity.id,
             cv_path=str(self.document_source.cv_path),
-            cv_output_path=self._build_output_path(
-                kind=DocumentKind.CV,
-                target_name=client,
-                role_or_mission=mission_type,
-                date=opportunity.created_at[:10],
-                extension="pdf",
-            ),
+            cv_output_path=cv_output_path,
             cover_letter_source_path=str(self.document_source.cover_letter_path),
-            cover_letter_output_path=self._build_output_path(
-                kind=DocumentKind.FREELANCE_PROPOSAL,
-                target_name=client,
-                role_or_mission=mission_type,
-                date=opportunity.created_at[:10],
-                extension="docx",
-            ),
+            cover_letter_output_path=proposal_output_path,
             export_dir=str(self.result_dir) if self.result_dir else "",
         )
 
@@ -141,6 +150,14 @@ class V1ApplicationService:
                 "Le dossier GENERIQUE PRO doit contenir le CV et la lettre générique."
             )
 
+    def _copy_source_documents(self, cv_output_path: str, cover_letter_output_path: str) -> None:
+        if not self.result_dir:
+            return
+        if cv_output_path:
+            copy_to_result(self.document_source.cv_path, Path(cv_output_path))
+        if cover_letter_output_path:
+            copy_to_result(self.document_source.cover_letter_path, Path(cover_letter_output_path))
+
     def _build_output_path(
         self,
         *,
@@ -153,11 +170,12 @@ class V1ApplicationService:
         if self.result_dir is None:
             return ""
 
+        clean_extension = extension.lstrip(".") or "txt"
         filename = build_document_filename(
             kind=kind,
             target_name=target_name,
             role_or_mission=role_or_mission,
             date=date,
-            extension=extension,
+            extension=clean_extension,
         )
         return str(build_result_path(self.result_dir, filename))

@@ -29,10 +29,12 @@ class BootstrapWorkspace:
         database = LocalDatabase(database_path)
         database.initialize()
 
-        document_source = DocumentSource(
+        document_source = DocumentSource.from_selected_paths(
             directory=self.settings.document_source_dir,
-            cv_filename=self.settings.generic_cv_filename,
-            cover_letter_filename=self.settings.generic_cover_letter_filename,
+            cv_path=self.settings.selected_cv_path,
+            cover_letter_path=self.settings.selected_cover_letter_path,
+            fallback_cv_filename=self.settings.generic_cv_filename,
+            fallback_cover_letter_filename=self.settings.generic_cover_letter_filename,
         )
 
         return WorkspaceBootstrapResult(
