@@ -18,4 +18,4 @@ class GitHubProjectContext:
     languages: tuple[str, ...] = field(default_factory=tuple)
     readme_summary: str = ""
     project_tags: tuple[str, ...] = field(default_factory=tuple)
-
+    updated_at: str = ""

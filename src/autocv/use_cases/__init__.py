@@ -7,10 +7,11 @@ from autocv.use_cases.v1_application_service import (
     MissingDocumentSourceError,
     V1ApplicationService,
 )
-from autocv.use_cases.v1_ai_service import V1AiService
+from autocv.use_cases.v1_ai_service import CoverLetterGenerationResult, V1AiService
 
 __all__ = [
     "BootstrapWorkspace",
+    "CoverLetterGenerationResult",
     "FreelanceOpportunityDraft",
     "JobApplicationDraft",
     "MissingDocumentSourceError",

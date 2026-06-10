@@ -1,17 +1,19 @@
 from dataclasses import replace
+import json
 import os
 from pathlib import Path
 import subprocess
 import sys
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QAction, QColor, QFont
+from PySide6.QtCore import QMimeData, Qt, Signal
+from PySide6.QtGui import QAction, QColor, QDrag, QFont, QTextCursor
 from PySide6.QtWidgets import (
     QApplication,
     QAbstractItemView,
     QComboBox,
     QDialog,
     QDialogButtonBox,
+    QDockWidget,
     QFileDialog,
     QFormLayout,
     QFrame,
@@ -50,6 +52,8 @@ from autocv.settings.app_settings import AppSettings, SettingsManager, result_di
 from autocv.use_cases import BootstrapWorkspace, MissingDocumentSourceError, V1AiService, V1ApplicationService
 
 
+PROJECT_MIME_TYPE = "application/x-autocv-github-project"
+
 VIEW_NAMES = [
     "Tableau de bord",
     "Candidatures",
@@ -76,12 +80,14 @@ class MainWindow(QMainWindow):
         self.scanned_documents: list[ScannedDocument] = []
         self.projects: list[GitHubProjectContext] = []
         self.nav_buttons: dict[str, QPushButton] = {}
+        self.chat_histories: dict[str, list[tuple[str, str]]] = {}
+        self.selected_projects: dict[str, GitHubProjectContext] = {}
 
         self._bind_runtime(settings)
 
         self.setWindowTitle("Auto-CV")
-        self.resize(1280, 780)
-        self.setMinimumSize(1120, 680)
+        self.resize(1500, 840)
+        self.setMinimumSize(1280, 720)
 
         self._build_actions()
         self._build_ui()
@@ -119,14 +125,19 @@ class MainWindow(QMainWindow):
 
         layout.addWidget(self._build_sidebar())
         layout.addWidget(self._build_main_stack(), stretch=1)
-        layout.addWidget(self._build_detail_panel())
 
         self.setCentralWidget(root)
+        self.detail_dock = QDockWidget("", self)
+        self.detail_dock.setObjectName("DetailDock")
+        self.detail_dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
+        self.detail_dock.setTitleBarWidget(QWidget())
+        self.detail_dock.setWidget(self._build_detail_panel())
+        self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.detail_dock)
 
     def _build_sidebar(self) -> QWidget:
         sidebar = QFrame()
         sidebar.setObjectName("Sidebar")
-        sidebar.setFixedWidth(220)
+        sidebar.setFixedWidth(200)
 
         layout = QVBoxLayout(sidebar)
         layout.setContentsMargins(18, 20, 18, 20)
@@ -160,11 +171,16 @@ class MainWindow(QMainWindow):
 
     def _build_main_stack(self) -> QWidget:
         container = QWidget()
+        container.setMinimumWidth(0)
+        container.setMaximumWidth(980)
+        container.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         layout = QVBoxLayout(container)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
         self.stack = QStackedWidget()
+        self.stack.setMinimumWidth(0)
+        self.stack.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self.view_indexes: dict[str, int] = {}
         builders = [
             self._build_dashboard_view,
@@ -181,6 +197,8 @@ class MainWindow(QMainWindow):
 
     def _new_page(self, title: str, subtitle: str) -> tuple[QWidget, QVBoxLayout, QHBoxLayout]:
         page = QWidget()
+        page.setMinimumWidth(0)
+        page.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         layout = QVBoxLayout(page)
         layout.setContentsMargins(22, 20, 22, 20)
         layout.setSpacing(14)
@@ -377,10 +395,11 @@ class MainWindow(QMainWindow):
         header.addWidget(self.github_owner_input)
         header.addWidget(sync_button)
 
-        self.projects_table = QTableWidget(0, 5)
+        self.projects_table = ProjectTableWidget(0, 5)
         self.projects_table.setObjectName("ApplicationTable")
         self.projects_table.setHorizontalHeaderLabels(["Projet", "Langage", "Topics", "Description", "URL"])
         self._configure_table(self.projects_table)
+        self.projects_table.setDragEnabled(True)
         layout.addWidget(self.projects_table, stretch=1)
         return page
 
@@ -429,7 +448,7 @@ class MainWindow(QMainWindow):
     def _build_detail_panel(self) -> QWidget:
         panel = QFrame()
         panel.setObjectName("DetailPanel")
-        panel.setFixedWidth(360)
+        panel.setFixedWidth(340)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(18, 20, 18, 20)
@@ -452,8 +471,31 @@ class MainWindow(QMainWindow):
         self.detail_paths = QTextEdit()
         self.detail_paths.setObjectName("PathBox")
         self.detail_paths.setReadOnly(True)
-        self.detail_paths.setMinimumHeight(180)
+        self.detail_paths.setMinimumHeight(130)
         layout.addWidget(self.detail_paths)
+
+        self.project_chip = QLabel("Projet GitHub: aucun")
+        self.project_chip.setObjectName("ProjectChip")
+        self.project_chip.setWordWrap(True)
+        layout.addWidget(self.project_chip)
+
+        self.chat_transcript = AssistantTranscript()
+        self.chat_transcript.setObjectName("ChatTranscript")
+        self.chat_transcript.setReadOnly(True)
+        self.chat_transcript.setMinimumHeight(220)
+        self.chat_transcript.projectDropped.connect(self.use_project_payload)
+        layout.addWidget(self.chat_transcript, stretch=1)
+
+        chat_input_row = QHBoxLayout()
+        self.chat_input = QLineEdit()
+        self.chat_input.setPlaceholderText("Message a Qwen...")
+        self.chat_input.returnPressed.connect(self.send_chat_message)
+        self.chat_send_button = QPushButton("Envoyer")
+        self.chat_send_button.setObjectName("PrimaryButton")
+        self.chat_send_button.clicked.connect(self.send_chat_message)
+        chat_input_row.addWidget(self.chat_input, stretch=1)
+        chat_input_row.addWidget(self.chat_send_button)
+        layout.addLayout(chat_input_row)
 
         actions = QFrame()
         actions.setObjectName("ActionsPanel")
@@ -469,15 +511,21 @@ class MainWindow(QMainWindow):
         self.prepare_mail_button = QPushButton("Preparer le mail")
         self.prepare_mail_button.setObjectName("ActionButton")
         self.prepare_mail_button.clicked.connect(self.prepare_selected_mail)
+        self.insert_project_button = QPushButton("Inserer projet")
+        self.insert_project_button.setObjectName("ActionButton")
+        self.insert_project_button.clicked.connect(self.insert_selected_project_from_table)
         self.open_result_button = QPushButton("Ouvrir Result")
         self.open_result_button.setObjectName("ActionButton")
         self.open_result_button.clicked.connect(self.open_result_directory)
-        for button in [self.adapt_letter_button, self.prepare_mail_button, self.open_result_button]:
+        for button in [
+            self.adapt_letter_button,
+            self.prepare_mail_button,
+            self.insert_project_button,
+            self.open_result_button,
+        ]:
             button.setMinimumHeight(36)
             actions_layout.addWidget(button)
         layout.addWidget(actions)
-
-        layout.addStretch()
 
         self.local_ai_status = QLabel("IA locale: verification...")
         self.local_ai_status.setObjectName("AiStatus")
@@ -487,10 +535,13 @@ class MainWindow(QMainWindow):
         return panel
 
     def _configure_table(self, table: QTableWidget) -> None:
+        table.setMinimumWidth(0)
+        table.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         table.verticalHeader().setVisible(False)
         table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         table.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
         table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        table.horizontalHeader().setMinimumSectionSize(58)
         table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Stretch)
         table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.ResizeToContents)
 
@@ -613,7 +664,7 @@ class MainWindow(QMainWindow):
                 project.description,
                 project.url,
             ]
-            self._set_table_row(self.projects_table, row, cells, project.url)
+            self._set_table_row(self.projects_table, row, cells, _project_payload(project))
         self.projects_table.resizeRowsToContents()
 
     def _set_table_row(
@@ -626,9 +677,9 @@ class MainWindow(QMainWindow):
         for column, value in enumerate(cells):
             item = QTableWidgetItem(value)
             item.setData(Qt.ItemDataRole.UserRole, user_data)
-            item.setForeground(QColor("#0f172a"))
+            item.setForeground(QColor("#d9e7f5"))
             if "statut" in (table.horizontalHeaderItem(column).text().lower()):
-                item.setForeground(QColor("#0f766e"))
+                item.setForeground(QColor("#5eead4"))
             table.setItem(row, column, item)
 
     def _update_metrics(self, records: list[ApplicationRecord]) -> None:
@@ -663,8 +714,6 @@ class MainWindow(QMainWindow):
             self.local_ai_status.setText("IA locale: online")
         else:
             self.local_ai_status.setText("IA locale: offline")
-        self.adapt_letter_button.setEnabled(status.online)
-        self.prepare_mail_button.setEnabled(status.online)
 
     def update_detail_from_selection(self) -> None:
         record = self._selected_record_from_table(self.table, self.current_records)
@@ -687,6 +736,7 @@ class MainWindow(QMainWindow):
             self.detail_title.setText("Aucune selection")
             self.detail_meta.setText("")
             self.detail_paths.setPlainText("")
+            self._render_chat()
             return
 
         target_name, role = self._target_for_record(record)
@@ -710,6 +760,7 @@ class MainWindow(QMainWindow):
                 ]
             )
         )
+        self._render_chat()
 
     def create_job_application(self) -> None:
         dialog = JobApplicationDialog(self)
@@ -887,6 +938,55 @@ class MainWindow(QMainWindow):
         else:
             QMessageBox.warning(self, "GitHub", result.message)
 
+    def send_chat_message(self) -> None:
+        message = self.chat_input.text().strip()
+        if not message:
+            return
+        record = self._selected_visible_record()
+        target_name, role = self._chat_target(record)
+        context = self._context_for_record(record) if record else ""
+        self._append_chat_message("user", message)
+        self.chat_input.clear()
+
+        response = self.ai_service.chat(
+            message=message,
+            record=record,
+            target_name=target_name,
+            role_or_mission=role,
+            context=context,
+            selected_project=self._selected_project_for_chat(),
+            chat_history=self._chat_history_text(),
+        )
+        self._append_chat_message("assistant", response.text)
+
+    def insert_selected_project_from_table(self) -> None:
+        selected = (
+            self.projects_table.selectionModel().selectedRows()
+            if self.projects_table.selectionModel()
+            else []
+        )
+        if not selected:
+            QMessageBox.information(self, "Projet GitHub", "Selectionne un projet GitHub.")
+            return
+        item = self.projects_table.item(selected[0].row(), 0)
+        if item is None:
+            return
+        self.use_project_payload(item.data(Qt.ItemDataRole.UserRole))
+
+    def use_project_payload(self, payload: str) -> None:
+        try:
+            data = json.loads(payload)
+        except (TypeError, json.JSONDecodeError):
+            QMessageBox.warning(self, "Projet GitHub", "Projet GitHub illisible.")
+            return
+        project = self._project_from_payload(data)
+        if project is None:
+            QMessageBox.warning(self, "Projet GitHub", "Projet GitHub introuvable dans le cache.")
+            return
+        self.selected_projects[self._chat_key()] = project
+        self._append_chat_message("system", f"Projet selectionne: {project.repository_name}")
+        self._render_chat()
+
     def adapt_selected_text(self) -> None:
         record = self._selected_visible_record()
         if record is None:
@@ -895,36 +995,27 @@ class MainWindow(QMainWindow):
 
         target_name, role = self._target_for_record(record)
         context = self._context_for_record(record)
-        response = self.ai_service.adapt_application_text(
+        response = self.ai_service.generate_cover_letter_docx(
             record=record,
             target_name=target_name,
             role_or_mission=role,
             context=context,
+            result_dir=self.settings.result_dir,
+            selected_project=self._selected_project_for_chat(),
+            chat_history=self._chat_history_text(),
         )
         if not response.available:
+            self._append_chat_message("assistant", response.text)
             QMessageBox.warning(self, "IA locale indisponible", response.text)
             return
 
-        kind = (
-            DocumentKind.FREELANCE_PROPOSAL
-            if record.opportunity_type == OpportunityType.FREELANCE
-            else DocumentKind.COVER_LETTER
+        message = (
+            "Lettre ajustee generee dans Result:\n"
+            f"{response.output_path}\n\n"
+            "Le document generique source n'a pas ete modifie."
         )
-        output = self.ai_service.save_preview(
-            result_dir=self.settings.result_dir,
-            kind=kind,
-            target_name=target_name,
-            role_or_mission=role,
-            date=record.created_at[:10],
-            content=response.text,
-        )
-        PreviewDialog(
-            title="Texte genere",
-            heading=f"{target_name} - {role}",
-            body=response.text,
-            output_path=output,
-            parent=self,
-        ).exec()
+        self._append_chat_message("assistant", message)
+        QMessageBox.information(self, "Lettre generee", message)
 
     def prepare_selected_mail(self) -> None:
         record = self._selected_visible_record()
@@ -946,6 +1037,7 @@ class MainWindow(QMainWindow):
             )
         )
         if not draft.available:
+            self._append_chat_message("assistant", draft.body)
             QMessageBox.warning(self, "IA locale indisponible", draft.body)
             return
 
@@ -965,6 +1057,64 @@ class MainWindow(QMainWindow):
             output_path=output,
             parent=self,
         ).exec()
+        self._append_chat_message("assistant", f"Mail prepare:\nObjet: {draft.subject}\n\n{draft.body}")
+
+    def _append_chat_message(self, role: str, text: str) -> None:
+        key = self._chat_key()
+        history = self.chat_histories.setdefault(key, [])
+        history.append((role, text))
+        self._render_chat()
+
+    def _render_chat(self) -> None:
+        key = self._chat_key()
+        project = self.selected_projects.get(key)
+        if project is None:
+            self.project_chip.setText("Projet GitHub: aucun")
+        else:
+            self.project_chip.setText(f"Projet GitHub: {project.repository_name}")
+
+        lines: list[str] = []
+        for role, text in self.chat_histories.get(key, []):
+            label = {
+                "user": "Victor",
+                "assistant": "Auto-CV",
+                "system": "Contexte",
+            }.get(role, role)
+            lines.append(f"{label}\n{text}")
+        if not lines:
+            lines.append(
+                "Auto-CV\nGlisse un projet GitHub ici ou pose une question a Qwen sur la candidature."
+            )
+        self.chat_transcript.setPlainText("\n\n".join(lines))
+        self.chat_transcript.moveCursor(QTextCursor.MoveOperation.End)
+
+    def _chat_history_text(self) -> str:
+        history = self.chat_histories.get(self._chat_key(), [])
+        return "\n".join(f"{role}: {text}" for role, text in history[-8:])
+
+    def _chat_key(self) -> str:
+        record = self._selected_visible_record()
+        return record.id if record else "__global__"
+
+    def _chat_target(self, record: ApplicationRecord | None) -> tuple[str, str]:
+        if record is None:
+            return "Auto-CV", "Conversation libre"
+        return self._target_for_record(record)
+
+    def _selected_project_for_chat(self) -> GitHubProjectContext | None:
+        return self.selected_projects.get(self._chat_key())
+
+    def _project_from_payload(self, data: dict) -> GitHubProjectContext | None:
+        url = data.get("url", "")
+        name = data.get("repository_name", "")
+        return next(
+            (
+                project
+                for project in self.projects
+                if (url and project.url == url) or (name and project.repository_name == name)
+            ),
+            None,
+        )
 
     def _selected_visible_record(self) -> ApplicationRecord | None:
         current_view = VIEW_NAMES[self.stack.currentIndex()]
@@ -1185,6 +1335,22 @@ class MainWindow(QMainWindow):
                 font-size: 12px;
                 padding: 8px;
             }
+            #ChatTranscript {
+                background: #07111f;
+                border: 1px solid #203653;
+                border-radius: 8px;
+                color: #d9e7f5;
+                font-size: 12px;
+                padding: 8px;
+            }
+            #ProjectChip {
+                background: #10233a;
+                border: 1px solid #24577a;
+                border-radius: 6px;
+                color: #bae6fd;
+                padding: 8px;
+                font-weight: 600;
+            }
             #ActionsPanel, #FormPanel {
                 background: #0b1626;
                 border: 1px solid #203653;
@@ -1248,6 +1414,7 @@ class MetricBox(QFrame):
         super().__init__()
         self.setObjectName("MetricBox")
         self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.setMinimumWidth(0)
         self.setMinimumHeight(82)
 
         layout = QVBoxLayout(self)
@@ -1263,6 +1430,57 @@ class MetricBox(QFrame):
 
     def set_value(self, value: str) -> None:
         self.value.setText(value)
+
+
+class AssistantTranscript(QTextEdit):
+    projectDropped = Signal(str)
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, event) -> None:
+        if event.mimeData().hasFormat(PROJECT_MIME_TYPE):
+            event.acceptProposedAction()
+            return
+        super().dragEnterEvent(event)
+
+    def dropEvent(self, event) -> None:
+        if event.mimeData().hasFormat(PROJECT_MIME_TYPE):
+            payload = bytes(event.mimeData().data(PROJECT_MIME_TYPE)).decode("utf-8")
+            self.projectDropped.emit(payload)
+            event.acceptProposedAction()
+            return
+        super().dropEvent(event)
+
+
+class ProjectTableWidget(QTableWidget):
+    def startDrag(self, supported_actions) -> None:
+        selected = self.selectionModel().selectedRows() if self.selectionModel() else []
+        if not selected:
+            return
+        item = self.item(selected[0].row(), 0)
+        if item is None:
+            return
+        payload = item.data(Qt.ItemDataRole.UserRole)
+        if not payload:
+            return
+
+        mime = QMimeData()
+        mime.setData(PROJECT_MIME_TYPE, str(payload).encode("utf-8"))
+        drag = QDrag(self)
+        drag.setMimeData(mime)
+        drag.exec(supported_actions)
+
+
+def _project_payload(project: GitHubProjectContext) -> str:
+    return json.dumps(
+        {
+            "repository_name": project.repository_name,
+            "url": project.url,
+        },
+        ensure_ascii=False,
+    )
 
 
 class JobApplicationDialog(QDialog):
