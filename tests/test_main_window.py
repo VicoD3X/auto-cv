@@ -35,9 +35,8 @@ def test_main_window_can_be_created_offscreen(tmp_path, monkeypatch) -> None:
     assert window.windowTitle() == "Auto-CV"
     assert window.table.columnCount() == 7
     assert window.stack.count() == 7
-    assert window.chat_input.placeholderText() == "Chat IA desactive en V1"
-    assert window.chat_input.isEnabled() is False
-    assert "Mode V1 sans IA" in window.chat_transcript.toPlainText()
+    assert window.chat_input.isVisible() is False
+    assert "Atelier pret" in window.activity_log.toPlainText()
     window.show_view("Documents")
     assert window.documents_table.rowCount() == 2
     assert window.duplicate_document_button.text() == "Dupliquer & ouvrir"
@@ -48,6 +47,12 @@ def test_main_window_can_be_created_offscreen(tmp_path, monkeypatch) -> None:
     assert window.trash_table.columnCount() == 7
     assert window.restore_trash_button.text() == "Restaurer"
     assert window.delete_trash_button.text() == "Supprimer definitivement"
+    window.show_view("Projets publics")
+    assert window.projects_table.columnCount() == 6
+    assert window.copy_project_name_button.text() == "Copier nom"
+    assert window.copy_project_url_button.text() == "Copier URL"
+    assert window.copy_project_link_button.text() == "Copier hyperlien Word"
+    assert window.open_project_button.text() == "Ouvrir projet"
     window.show_view("Parametres")
     assert window.stack.currentIndex() == window.view_indexes["Parametres"]
     assert window.bootstrap.document_source_ready is True
@@ -56,7 +61,7 @@ def test_main_window_can_be_created_offscreen(tmp_path, monkeypatch) -> None:
     app.processEvents()
 
 
-def test_main_window_accepts_github_project_in_assistant(tmp_path, monkeypatch) -> None:
+def test_main_window_uses_public_project_library_actions(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     source_dir = tmp_path / "GENERIQUE PRO"
     source_dir.mkdir()
@@ -79,11 +84,91 @@ def test_main_window_accepts_github_project_in_assistant(tmp_path, monkeypatch) 
     app = QApplication.instance() or QApplication([])
     window = MainWindow(settings)
     window.projects = [project]
+    window._populate_projects_table()
+    window.show_view("Projets publics")
+    window.projects_table.selectRow(0)
+    opened_urls: list[str] = []
+    monkeypatch.setattr(window, "_open_url", opened_urls.append)
+
+    class FakeClipboard:
+        def __init__(self) -> None:
+            self.text_value = ""
+            self.mime_value = None
+
+        def setText(self, value: str) -> None:
+            self.text_value = value
+
+        def text(self) -> str:
+            return self.text_value
+
+        def setMimeData(self, mime) -> None:
+            self.mime_value = mime
+
+        def mimeData(self):
+            return self.mime_value
+
+    fake_clipboard = FakeClipboard()
+    monkeypatch.setattr("autocv.ui.main_window.QApplication.clipboard", lambda: fake_clipboard)
+
+    window.copy_selected_project_name()
+
+    assert fake_clipboard.text() == "spark-vision"
+
+    window.copy_selected_project_hyperlink()
+
+    assert fake_clipboard.mimeData().text() == "spark-vision"
+    assert "https://github.com/VicoD3X/spark-vision" in fake_clipboard.mimeData().html()
+
+    window.open_selected_project()
+
+    assert opened_urls == ["https://github.com/VicoD3X/spark-vision"]
+
     window.use_project_payload(_project_payload(project))
 
     assert window.selected_projects["__global__"] == project
-    assert "Projet GitHub: spark-vision" in window.project_chip.text()
-    assert "Projet selectionne: spark-vision" in window.chat_transcript.toPlainText()
+    assert "Projet public selectionne: spark-vision" in window.project_chip.text()
+    assert "Projet public selectionne: spark-vision" in window.activity_log.toPlainText()
+
+    window.close()
+    app.processEvents()
+
+
+def test_main_window_project_clipboard_falls_back_to_plain_text(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    source_dir = tmp_path / "GENERIQUE PRO"
+    source_dir.mkdir()
+    (source_dir / "cv.pdf").write_text("CV")
+    (source_dir / "lettre.docx").write_text("Lettre")
+    settings = replace(
+        AppSettings.load(),
+        data_dir=tmp_path / "data",
+        project_context_cache_dir=tmp_path / "data" / "project_context",
+        document_source_dir=source_dir,
+        result_dir=source_dir / "Auto-CV" / "Result",
+        generic_cv_filename="cv.pdf",
+        generic_cover_letter_filename="lettre.docx",
+    )
+
+    class FakeClipboard:
+        def __init__(self) -> None:
+            self.text = ""
+
+        def setMimeData(self, mime) -> None:
+            raise RuntimeError("rich clipboard unavailable")
+
+        def setText(self, value: str) -> None:
+            self.text = value
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(settings)
+    fake_clipboard = FakeClipboard()
+    monkeypatch.setattr("autocv.ui.main_window.QApplication.clipboard", lambda: fake_clipboard)
+
+    mode = window._copy_project_payload_to_clipboard("spark-vision", "<a>spark-vision</a>")
+
+    assert mode == "plain"
+    assert fake_clipboard.text == "spark-vision"
+    assert (settings.data_dir / "logs" / "autocv.log").exists()
 
     window.close()
     app.processEvents()
@@ -328,6 +413,14 @@ def test_main_window_creates_document_pack_without_ai(tmp_path, monkeypatch) -> 
     assert letter_source.read_text(encoding="utf-8") == "Lettre"
     assert window.ai_server is None
 
+    window.open_selected_generated_cv()
+    window.open_selected_generated_letter()
+    window.open_selected_mail_file()
+
+    assert Path(draft.application.cv_output_path) in opened
+    assert Path(draft.application.cover_letter_output_path) in opened
+    assert mail_files[0] in opened
+
     window.close()
     app.processEvents()
 
@@ -351,7 +444,7 @@ def test_main_window_does_not_start_ai_on_launch(tmp_path, monkeypatch) -> None:
     window = MainWindow(settings)
 
     assert window.ai_server is None
-    assert "IA locale: desactivee" in window.local_ai_status.text()
+    assert "V1 sans IA" in window.local_ai_status.text()
 
     window.close()
     app.processEvents()
@@ -385,7 +478,7 @@ def test_main_window_keeps_ai_disabled_even_if_setting_is_enabled(tmp_path, monk
     assert fake_server.ensure_calls == 0
     assert window.ai_idle_timer.isActive() is False
     assert "Victor\nTu es pret ?" not in window.chat_transcript.toPlainText()
-    assert "IA locale: desactivee" in window.local_ai_status.text()
+    assert "V1 sans IA" in window.local_ai_status.text()
 
     window.close()
     app.processEvents()

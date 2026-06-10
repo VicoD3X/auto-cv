@@ -8,6 +8,9 @@
 - Added per-target result folders using `Result/<Target>_<RoleOrMission>_<Date>/`.
 - Added a simple document pack action for applications and freelance opportunities.
 - Recentered the V1 UI on deterministic document preparation, local copies, local conversion, and manual validation.
+- Reworked GitHub into a public project library with copy-name, copy-URL, Word hyperlink copy, and open-project actions.
+- Added direct open actions for generated CV, letter/proposal, mail, target folder, and Result.
+- Added local user-facing logs at `~/.autocv/logs/autocv.log`.
 
 ## 0.2.0 - V1 Development Start
 

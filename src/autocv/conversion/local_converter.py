@@ -26,7 +26,7 @@ class LocalDocumentConverter:
                 output_path=request.output_path,
                 source="local_converter",
                 available=False,
-                message=f"Conversion impossible: {exc}",
+                message=_friendly_conversion_error(exc),
             )
 
         return ConversionResponse(
@@ -35,6 +35,18 @@ class LocalDocumentConverter:
             available=True,
             message="Conversion terminée.",
         )
+
+def _friendly_conversion_error(error: Exception) -> str:
+    module_name = type(error).__module__
+    text = str(error)
+    if isinstance(error, ModuleNotFoundError) and "win32com" in text:
+        return "Conversion impossible: pywin32 ou Microsoft Word/Excel est indisponible."
+    if "pywintypes" in module_name or "win32com" in module_name:
+        return (
+            "Conversion impossible: Microsoft Word/Excel est indisponible "
+            "ou le document est verrouille."
+        )
+    return f"Conversion impossible: {text}"
 
 
 def _docx_to_pdf(source_path: Path, output_path: Path) -> None:

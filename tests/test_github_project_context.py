@@ -1,7 +1,12 @@
 from pathlib import Path
 
 import autocv.projects.github_sync as github_sync
-from autocv.projects import GitHubProjectContext, GitHubProjectSync, GitHubProjectSyncSettings
+from autocv.projects import (
+    GitHubProjectContext,
+    GitHubProjectSync,
+    GitHubProjectSyncSettings,
+    ProjectLinkClipboardService,
+)
 
 
 def test_github_project_sync_settings_default_to_disabled() -> None:
@@ -21,6 +26,31 @@ def test_github_project_context_stores_safe_public_context() -> None:
 
     assert context.repository_name == "auto-cv"
     assert context.languages == ("Python",)
+
+
+def test_project_link_clipboard_payload_contains_word_hyperlink() -> None:
+    project = GitHubProjectContext(
+        repository_name="spark-vision",
+        url="https://github.com/VicoD3X/spark-vision",
+    )
+
+    payload = ProjectLinkClipboardService().build_payload(project)
+
+    assert payload.plain_text == "spark-vision"
+    assert payload.plain_url == "https://github.com/VicoD3X/spark-vision"
+    assert '<a href="https://github.com/VicoD3X/spark-vision">spark-vision</a>' in payload.html
+
+
+def test_project_link_clipboard_payload_escapes_html() -> None:
+    project = GitHubProjectContext(
+        repository_name="vision <core>",
+        url='https://github.com/VicoD3X/vision?x="1"',
+    )
+
+    payload = ProjectLinkClipboardService().build_payload(project)
+
+    assert "vision &lt;core&gt;" in payload.html
+    assert "&quot;1&quot;" in payload.html
 
 
 def test_github_project_sync_writes_and_loads_cache(tmp_path, monkeypatch) -> None:

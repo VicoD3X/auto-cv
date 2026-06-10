@@ -1,5 +1,6 @@
 """GitHub project context sync contracts."""
 
+from autocv.projects.clipboard import ProjectLinkClipboardPayload, ProjectLinkClipboardService
 from autocv.projects.github_context import GitHubProjectContext, GitHubProjectSyncSettings
 from autocv.projects.github_sync import GitHubProjectSync, GitHubSyncResult
 
@@ -8,4 +9,6 @@ __all__ = [
     "GitHubProjectSync",
     "GitHubProjectSyncSettings",
     "GitHubSyncResult",
+    "ProjectLinkClipboardPayload",
+    "ProjectLinkClipboardService",
 ]

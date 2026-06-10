@@ -108,18 +108,21 @@ Le mail de candidature est prepare par un template deterministe :
 
 Les brouillons de mail sont sauvegardes comme previsualisations `.txt` dans `Result`.
 
-## Projets GitHub
+## Projets Publics
 
-Auto-CV doit synchroniser les projets GitHub pour garder un contexte projet local exploitable.
+Auto-CV doit synchroniser les projets GitHub publics pour garder une bibliotheque de projets a citer manuellement.
 
 Objectif :
 
 - recuperer les projets publics pertinents ;
 - extraire un resume local exploitable ;
 - identifier les technos et themes ;
-- permettre a Victor de retrouver rapidement les projets pertinents a citer dans une lettre.
+- permettre a Victor de retrouver rapidement les projets pertinents a citer dans une lettre ou un CV ;
+- copier le nom du projet ;
+- copier l'URL du projet ;
+- copier un hyperlien Word ou seul le nom du projet est visible et cliquable.
 
-La synchronisation GitHub sert de contexte. Elle ne remplace pas la validation humaine.
+La synchronisation GitHub sert de bibliotheque publique. Elle ne modifie aucun document automatiquement.
 
 ## Face Freelance
 
@@ -193,12 +196,23 @@ Regles :
 - les conversions Excel restent secondaires et peuvent revenir apres stabilisation du workflow DOCX/PDF ;
 - les conversions doivent rester locales ;
 - aucun document personnel converti ne doit etre committe dans le repo public.
+- les erreurs utilisateur sont journalisees dans `~/.autocv/logs/autocv.log`.
 
 Cas d'usage V1 :
 
 - convertir une lettre DOCX en PDF final ;
 - reconstruire un PDF en DOCX editable quand necessaire ;
 - ouvrir la copie obtenue dans Word pour correction manuelle.
+
+## Logs Locaux
+
+Auto-CV garde un journal local pour diagnostiquer les erreurs sans bruit dans l'interface :
+
+```text
+~/.autocv/logs/autocv.log
+```
+
+Ce journal couvre notamment les erreurs d'ouverture, conversion, restauration, suppression et creation de pack.
 
 ## Hors Scope V1
 

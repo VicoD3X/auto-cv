@@ -60,12 +60,14 @@ The first useful version should help with:
 - editing documents through safe working copies, never through the original source files;
 - organizing each target in `Result/<Target>_<Role>_<Date>/`;
 - keeping canceled or unchanged work copies in a local pre-deletion area for 30 days before permanent removal;
-- syncing GitHub project context to support manual letter adjustments;
+- using public GitHub projects as a citation library for manual CV and cover letter edits;
+- copying a project name, URL, or Word-ready hyperlink from the project library;
 - preparing deterministic email drafts without requiring a local LLM;
 - writing generated and sorted results to `GENERIQUE PRO/Auto-CV/Result`;
 - applying smart document names for CVs, cover letters, proposals, and mail drafts;
 - converting DOCX/PDF formats locally, with Excel conversion kept secondary;
 - exporting the right document bundle;
+- logging local user-facing errors to `~/.autocv/logs/autocv.log`;
 - tracking application status;
 - keeping a lightweight freelance opportunity track;
 - optionally preparing or sending Gmail messages with attachments.

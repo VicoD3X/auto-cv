@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 import sys
 from time import monotonic
+import webbrowser
 
 from PySide6.QtCore import QMimeData, Qt, QTimer, Signal
 from PySide6.QtGui import QAction, QColor, QDrag, QFont, QTextCursor
@@ -61,7 +62,8 @@ from autocv.infrastructure import (
     LocalDatabase,
 )
 from autocv.mail import MailDraft
-from autocv.projects import GitHubProjectContext, GitHubProjectSync
+from autocv.app.user_log import UserActionLogger
+from autocv.projects import GitHubProjectContext, GitHubProjectSync, ProjectLinkClipboardService
 from autocv.settings.app_settings import AppSettings, SettingsManager, result_dir_for
 from autocv.use_cases import BootstrapWorkspace, MissingDocumentSourceError, V1ApplicationService
 
@@ -74,7 +76,7 @@ VIEW_NAMES = [
     "Freelance",
     "Documents",
     "Pre-suppression",
-    "Projets GitHub",
+    "Projets publics",
     "Parametres",
 ]
 
@@ -90,6 +92,8 @@ class MainWindow(QMainWindow):
         self.converter = LocalDocumentConverter()
         self.edit_session_service = DocumentEditSessionService()
         self.trash_service = self.edit_session_service.trash_service
+        self.project_clipboard = ProjectLinkClipboardService()
+        self.user_logger = UserActionLogger(settings.data_dir / "logs" / "autocv.log")
         self.ai_service = None
 
         self.current_records: list[ApplicationRecord] = []
@@ -121,6 +125,7 @@ class MainWindow(QMainWindow):
 
     def _bind_runtime(self, settings: AppSettings) -> None:
         self.settings = settings
+        self.user_logger = UserActionLogger(settings.data_dir / "logs" / "autocv.log")
         self.bootstrap = BootstrapWorkspace(settings).run()
         self.database = LocalDatabase(self.bootstrap.database_path)
         self.document_source = self.bootstrap.document_source
@@ -464,8 +469,8 @@ class MainWindow(QMainWindow):
 
     def _build_projects_view(self) -> QWidget:
         page, layout, header = self._new_page(
-            "Projets GitHub",
-            "Cache local du contexte public VicoD3X pour retrouver les projets pertinents",
+            "Projets publics",
+            "Bibliotheque GitHub publique pour citer rapidement un projet dans Word",
         )
 
         self.github_owner_input = QLineEdit()
@@ -477,12 +482,37 @@ class MainWindow(QMainWindow):
         header.addWidget(self.github_owner_input)
         header.addWidget(sync_button)
 
-        self.projects_table = ProjectTableWidget(0, 5)
+        self.projects_table = ProjectTableWidget(0, 6)
         self.projects_table.setObjectName("ApplicationTable")
-        self.projects_table.setHorizontalHeaderLabels(["Projet", "Langage", "Topics", "Description", "URL"])
+        self.projects_table.setHorizontalHeaderLabels(
+            ["Projet", "Langage", "Topics", "Description", "URL", "MAJ"]
+        )
         self._configure_table(self.projects_table)
         self.projects_table.setDragEnabled(True)
         layout.addWidget(self.projects_table, stretch=1)
+
+        actions = QHBoxLayout()
+        self.copy_project_name_button = QPushButton("Copier nom")
+        self.copy_project_name_button.setObjectName("ActionButton")
+        self.copy_project_name_button.clicked.connect(self.copy_selected_project_name)
+        self.copy_project_url_button = QPushButton("Copier URL")
+        self.copy_project_url_button.setObjectName("ActionButton")
+        self.copy_project_url_button.clicked.connect(self.copy_selected_project_url)
+        self.copy_project_link_button = QPushButton("Copier hyperlien Word")
+        self.copy_project_link_button.setObjectName("PrimaryButton")
+        self.copy_project_link_button.clicked.connect(self.copy_selected_project_hyperlink)
+        self.open_project_button = QPushButton("Ouvrir projet")
+        self.open_project_button.setObjectName("ActionButton")
+        self.open_project_button.clicked.connect(self.open_selected_project)
+        for button in [
+            self.copy_project_name_button,
+            self.copy_project_url_button,
+            self.copy_project_link_button,
+            self.open_project_button,
+        ]:
+            actions.addWidget(button)
+        actions.addStretch()
+        layout.addLayout(actions)
         return page
 
     def _build_settings_view(self) -> QWidget:
@@ -560,30 +590,28 @@ class MainWindow(QMainWindow):
         self.detail_paths.setMinimumHeight(130)
         layout.addWidget(self.detail_paths)
 
-        self.project_chip = QLabel("Projet GitHub: aucun")
+        self.project_chip = QLabel("Projet public selectionne: aucun")
         self.project_chip.setObjectName("ProjectChip")
         self.project_chip.setWordWrap(True)
         layout.addWidget(self.project_chip)
 
-        self.chat_transcript = AssistantTranscript()
-        self.chat_transcript.setObjectName("ChatTranscript")
-        self.chat_transcript.setReadOnly(True)
-        self.chat_transcript.setMinimumHeight(220)
-        self.chat_transcript.projectDropped.connect(self.use_project_payload)
-        layout.addWidget(self.chat_transcript, stretch=1)
+        journal_title = QLabel("Journal atelier")
+        journal_title.setObjectName("ActionTitle")
+        layout.addWidget(journal_title)
 
-        chat_input_row = QHBoxLayout()
+        self.activity_log = AssistantTranscript()
+        self.activity_log.setObjectName("ChatTranscript")
+        self.activity_log.setReadOnly(True)
+        self.activity_log.setMinimumHeight(220)
+        self.activity_log.projectDropped.connect(self.use_project_payload)
+        layout.addWidget(self.activity_log, stretch=1)
+        self.chat_transcript = self.activity_log
+
         self.chat_input = QLineEdit()
-        self.chat_input.setPlaceholderText("Chat IA desactive en V1")
+        self.chat_input.setPlaceholderText("")
         self.chat_input.setEnabled(False)
-        self.chat_input.returnPressed.connect(self.send_chat_message)
         self.chat_send_button = QPushButton("Envoyer")
-        self.chat_send_button.setObjectName("PrimaryButton")
         self.chat_send_button.setEnabled(False)
-        self.chat_send_button.clicked.connect(self.send_chat_message)
-        chat_input_row.addWidget(self.chat_input, stretch=1)
-        chat_input_row.addWidget(self.chat_send_button)
-        layout.addLayout(chat_input_row)
 
         actions = QFrame()
         actions.setObjectName("ActionsPanel")
@@ -593,19 +621,21 @@ class MainWindow(QMainWindow):
         actions_title = QLabel("Atelier documentaire")
         actions_title.setObjectName("ActionTitle")
         actions_layout.addWidget(actions_title)
-        self.adapt_letter_button = QPushButton("Adapter la lettre")
-        self.adapt_letter_button.setObjectName("ActionButton")
-        self.adapt_letter_button.setEnabled(False)
-        self.adapt_letter_button.clicked.connect(self.adapt_selected_text)
         self.create_pack_button = QPushButton("Creer pack candidature")
         self.create_pack_button.setObjectName("PrimaryButton")
         self.create_pack_button.clicked.connect(self.create_selected_document_pack)
         self.prepare_mail_button = QPushButton("Preparer le mail")
         self.prepare_mail_button.setObjectName("ActionButton")
         self.prepare_mail_button.clicked.connect(self.prepare_selected_mail)
-        self.insert_project_button = QPushButton("Inserer projet")
-        self.insert_project_button.setObjectName("ActionButton")
-        self.insert_project_button.clicked.connect(self.insert_selected_project_from_table)
+        self.open_cv_button = QPushButton("Ouvrir CV")
+        self.open_cv_button.setObjectName("ActionButton")
+        self.open_cv_button.clicked.connect(self.open_selected_generated_cv)
+        self.open_letter_button = QPushButton("Ouvrir lettre")
+        self.open_letter_button.setObjectName("ActionButton")
+        self.open_letter_button.clicked.connect(self.open_selected_generated_letter)
+        self.open_mail_button = QPushButton("Ouvrir mail")
+        self.open_mail_button.setObjectName("ActionButton")
+        self.open_mail_button.clicked.connect(self.open_selected_mail_file)
         self.open_target_button = QPushButton("Ouvrir dossier cible")
         self.open_target_button.setObjectName("ActionButton")
         self.open_target_button.clicked.connect(self.open_current_target_folder)
@@ -615,7 +645,9 @@ class MainWindow(QMainWindow):
         for button in [
             self.create_pack_button,
             self.prepare_mail_button,
-            self.insert_project_button,
+            self.open_cv_button,
+            self.open_letter_button,
+            self.open_mail_button,
             self.open_target_button,
             self.open_result_button,
         ]:
@@ -623,7 +655,7 @@ class MainWindow(QMainWindow):
             actions_layout.addWidget(button)
         layout.addWidget(actions)
 
-        self.local_ai_status = QLabel("IA locale: verification...")
+        self.local_ai_status = QLabel("V1 sans IA: aucun modele local ne demarre")
         self.local_ai_status.setObjectName("AiStatus")
         self.local_ai_status.setWordWrap(True)
         layout.addWidget(self.local_ai_status)
@@ -778,6 +810,7 @@ class MainWindow(QMainWindow):
                 ", ".join(project.topics) or "-",
                 project.description,
                 project.url,
+                project.updated_at[:10] if project.updated_at else "-",
             ]
             self._set_table_row(self.projects_table, row, cells, _project_payload(project))
         self.projects_table.resizeRowsToContents()
@@ -827,10 +860,9 @@ class MainWindow(QMainWindow):
         self.github_owner_input.setText(self.settings.github_owner)
 
     def _update_ai_status(self) -> None:
-        self.local_ai_status.setText("IA locale: desactivee - V1 sans LLM")
+        self.local_ai_status.setText("V1 sans IA: aucun modele local ne demarre")
         self.chat_input.setEnabled(False)
         self.chat_send_button.setEnabled(False)
-        self.adapt_letter_button.setEnabled(False)
         self.create_pack_button.setEnabled(True)
         self.prepare_mail_button.setEnabled(True)
 
@@ -867,6 +899,12 @@ class MainWindow(QMainWindow):
         self.detail_paths.setPlainText(
             "\n".join(
                 [
+                    "Etat du pack:",
+                    f"CV genere: {self._exists_label(record.cv_output_path)}",
+                    f"Lettre / proposition: {self._exists_label(record.cover_letter_output_path)}",
+                    f"Mail: {self._exists_label(self._mail_output_path_for_record(record))}",
+                    f"PDF final: {'OK' if self._record_pdf_final_exists(record) else 'Absent'}",
+                    "",
                     f"CV source:\n{record.cv_path}",
                     "",
                     f"CV renomme:\n{record.cv_output_path or '-'}",
@@ -968,16 +1006,41 @@ class MainWindow(QMainWindow):
         if document is None:
             QMessageBox.information(self, "Selection", "Selectionne un document.")
             return
-        self._open_path(document.path)
+        self._safe_open_path(document.path, "open_document")
 
     def open_result_directory(self) -> None:
         self.settings.result_dir.mkdir(parents=True, exist_ok=True)
-        self._open_path(self.settings.result_dir)
+        self._safe_open_path(self.settings.result_dir, "open_result")
+
+    def open_selected_generated_cv(self) -> None:
+        record = self._selected_visible_record()
+        if record is None:
+            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            return
+        self._open_existing_path(record.cv_output_path or record.cv_path, "CV")
+
+    def open_selected_generated_letter(self) -> None:
+        record = self._selected_visible_record()
+        if record is None:
+            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            return
+        self._open_existing_path(
+            record.cover_letter_output_path or record.cover_letter_source_path,
+            "Lettre / proposition",
+        )
+
+    def open_selected_mail_file(self) -> None:
+        record = self._selected_visible_record()
+        if record is None:
+            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            return
+        mail_path = self._mail_output_path_for_record(record)
+        self._open_existing_path(str(mail_path), "Mail")
 
     def open_trash_directory(self) -> None:
         trash_dir = self.trash_service.trash_dir(self.settings.result_dir)
         trash_dir.mkdir(parents=True, exist_ok=True)
-        self._open_path(trash_dir)
+        self._safe_open_path(trash_dir, "open_trash")
 
     def restore_selected_trash_entry(self) -> None:
         entry = self._selected_trash_entry()
@@ -990,6 +1053,7 @@ class MainWindow(QMainWindow):
                 entry_id=entry.entry_id,
             )
         except OSError as exc:
+            self.user_logger.error("restore_trash_entry", exc, context=entry.entry_id)
             QMessageBox.warning(self, "Restauration impossible", str(exc))
             return
         QMessageBox.information(self, "Fichier restaure", f"Restaure dans:\n{restored_path}")
@@ -1013,6 +1077,7 @@ class MainWindow(QMainWindow):
                 entry_id=entry.entry_id,
             )
         except OSError as exc:
+            self.user_logger.error("delete_trash_entry", exc, context=entry.entry_id)
             QMessageBox.warning(self, "Suppression impossible", str(exc))
             return
         QMessageBox.information(self, "Suppression", "Fichier supprime definitivement.")
@@ -1060,9 +1125,8 @@ class MainWindow(QMainWindow):
         self.current_edit_session = session
         self._append_chat_message("system", f"Copie de travail creee:\n{session.working_copy_path}")
         try:
-            self._open_path(session.working_copy_path)
-        except OSError as exc:
-            QMessageBox.warning(self, "Ouverture impossible", str(exc))
+            self._safe_open_path(session.working_copy_path, "open_working_copy")
+        except OSError:
             return
         self.refresh()
 
@@ -1132,7 +1196,7 @@ class MainWindow(QMainWindow):
                 date=action_date,
             )
             target_folder.mkdir(parents=True, exist_ok=True)
-        self._open_path(target_folder)
+        self._safe_open_path(target_folder, "open_target_folder")
 
     def convert_selected_to_pdf(self) -> None:
         document = self._selected_document()
@@ -1173,8 +1237,17 @@ class MainWindow(QMainWindow):
             )
         )
         if response.available:
-            QMessageBox.information(self, "Conversion", f"{response.message}\n{response.output_path}")
+            message = response.message
+            if source_format == DocumentFormat.PDF and target_format == DocumentFormat.DOCX:
+                message = f"{message}\nReconstruction editable best-effort."
+            QMessageBox.information(self, "Conversion", f"{message}\n{response.output_path}")
         else:
+            self.user_logger.message(
+                "conversion",
+                response.message,
+                level="ERROR",
+                context=str(document.path),
+            )
             QMessageBox.warning(self, "Conversion", response.message)
         self.refresh()
 
@@ -1218,12 +1291,47 @@ class MainWindow(QMainWindow):
         self.projects = result.projects
         self._populate_projects_table()
         if result.available:
-            QMessageBox.information(self, "GitHub", result.message)
+            QMessageBox.information(self, "Projets publics", result.message)
         else:
-            QMessageBox.warning(self, "GitHub", result.message)
+            QMessageBox.warning(self, "Projets publics", result.message)
+
+    def copy_selected_project_name(self) -> None:
+        project = self._selected_project_from_table()
+        if project is None:
+            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            return
+        QApplication.clipboard().setText(project.repository_name)
+        self._append_chat_message("system", f"Nom copie: {project.repository_name}")
+
+    def copy_selected_project_url(self) -> None:
+        project = self._selected_project_from_table()
+        if project is None:
+            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            return
+        QApplication.clipboard().setText(project.url)
+        self._append_chat_message("system", f"URL copiee: {project.url}")
+
+    def copy_selected_project_hyperlink(self) -> None:
+        project = self._selected_project_from_table()
+        if project is None:
+            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            return
+        payload = self.project_clipboard.build_payload(project)
+        self._copy_project_payload_to_clipboard(payload.plain_text, payload.html)
+        self._append_chat_message("system", f"Hyperlien Word copie: {project.repository_name}")
+
+    def open_selected_project(self) -> None:
+        project = self._selected_project_from_table()
+        if project is None:
+            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            return
+        if not project.url:
+            QMessageBox.warning(self, "Projet public", "Ce projet n'a pas d'URL.")
+            return
+        self._open_url(project.url)
 
     def send_chat_message(self) -> None:
-        self.local_ai_status.setText("IA locale: desactivee - V1 sans LLM")
+        self.local_ai_status.setText("V1 sans IA: aucun modele local ne demarre")
 
     def insert_selected_project_from_table(self) -> None:
         selected = (
@@ -1232,7 +1340,7 @@ class MainWindow(QMainWindow):
             else []
         )
         if not selected:
-            QMessageBox.information(self, "Projet GitHub", "Selectionne un projet GitHub.")
+            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
             return
         item = self.projects_table.item(selected[0].row(), 0)
         if item is None:
@@ -1243,14 +1351,14 @@ class MainWindow(QMainWindow):
         try:
             data = json.loads(payload)
         except (TypeError, json.JSONDecodeError):
-            QMessageBox.warning(self, "Projet GitHub", "Projet GitHub illisible.")
+            QMessageBox.warning(self, "Projet public", "Projet illisible.")
             return
         project = self._project_from_payload(data)
         if project is None:
-            QMessageBox.warning(self, "Projet GitHub", "Projet GitHub introuvable dans le cache.")
+            QMessageBox.warning(self, "Projet public", "Projet introuvable dans le cache.")
             return
         self.selected_projects[self._chat_key()] = project
-        self._append_chat_message("system", f"Projet selectionne: {project.repository_name}")
+        self._append_chat_message("system", f"Projet public selectionne: {project.repository_name}")
         self._render_chat()
 
     def adapt_selected_text(self) -> None:
@@ -1311,6 +1419,7 @@ class MainWindow(QMainWindow):
                 content=f"Objet: {draft.subject}\n\nCorps:\n{draft.body}",
             )
         except OSError as exc:
+            self.user_logger.error("create_document_pack", exc, context=f"{target_name} - {role}")
             QMessageBox.warning(self, "Pack impossible", str(exc))
             return
 
@@ -1326,7 +1435,7 @@ class MainWindow(QMainWindow):
             ),
         )
         QMessageBox.information(self, "Pack cree", f"Pack pret dans:\n{target_folder}")
-        self._open_path(target_folder)
+        self._safe_open_path(target_folder, "open_pack_folder")
         self.refresh()
 
     def prepare_selected_mail(self) -> None:
@@ -1446,18 +1555,7 @@ class MainWindow(QMainWindow):
         return path
 
     def _ensure_ai_ready(self) -> bool:
-        if not self.settings.local_ai_enabled or self.ai_server is None:
-            self.local_ai_status.setText("IA locale: desactivee")
-            return False
-        self.local_ai_status.setText("IA locale: demarrage...")
-        QApplication.processEvents()
-        result = self.ai_server.ensure_running()
-        self._update_ai_status()
-        if result.available:
-            self.ai_last_activity = monotonic()
-            return True
-        self._append_chat_message("assistant", result.message)
-        QMessageBox.warning(self, "IA locale indisponible", result.message)
+        self.local_ai_status.setText("V1 sans IA: aucun modele local ne demarre")
         return False
 
     def _schedule_ai_idle_stop(self) -> None:
@@ -1489,9 +1587,9 @@ class MainWindow(QMainWindow):
         key = self._chat_key()
         project = self.selected_projects.get(key)
         if project is None:
-            self.project_chip.setText("Projet GitHub: aucun")
+            self.project_chip.setText("Projet public selectionne: aucun")
         else:
-            self.project_chip.setText(f"Projet GitHub: {project.repository_name}")
+            self.project_chip.setText(f"Projet public selectionne: {project.repository_name}")
 
         lines: list[str] = []
         for role, text in self.chat_histories.get(key, []):
@@ -1502,7 +1600,7 @@ class MainWindow(QMainWindow):
             }.get(role, role)
             lines.append(f"{label}\n{text}")
         if not lines:
-            lines.append("Auto-CV\nMode V1 sans IA. Les actions locales restent disponibles.")
+            lines.append("Auto-CV\nAtelier pret. Les actions locales sont disponibles.")
         self.chat_transcript.setPlainText("\n\n".join(lines))
         self.chat_transcript.moveCursor(QTextCursor.MoveOperation.End)
 
@@ -1563,6 +1661,19 @@ class MainWindow(QMainWindow):
         if row < 0 or row >= len(self.scanned_documents):
             return None
         return self.scanned_documents[row]
+
+    def _selected_project_from_table(self) -> GitHubProjectContext | None:
+        selected = (
+            self.projects_table.selectionModel().selectedRows()
+            if self.projects_table.selectionModel()
+            else []
+        )
+        if not selected:
+            return None
+        row = selected[0].row()
+        if row < 0 or row >= len(self.projects):
+            return None
+        return self.projects[row]
 
     def _selected_trash_entry(self) -> TrashEntry | None:
         selected = self.trash_table.selectionModel().selectedRows() if self.trash_table.selectionModel() else []
@@ -1673,6 +1784,33 @@ class MainWindow(QMainWindow):
             return DocumentKind.COVER_LETTER
         return DocumentKind.NOTES
 
+    def _mail_output_path_for_record(self, record: ApplicationRecord) -> Path:
+        target_name, role = self._target_for_record(record)
+        filename = build_document_filename(
+            kind=DocumentKind.EMAIL_DRAFT,
+            target_name=target_name,
+            role_or_mission=role,
+            date=record.created_at[:10],
+            extension="txt",
+        )
+        return build_result_path(self._target_folder_for_record(record), filename)
+
+    def _record_pdf_final_exists(self, record: ApplicationRecord) -> bool:
+        target_folder = self._target_folder_for_record(record)
+        cv_path = Path(record.cv_output_path) if record.cv_output_path else None
+        for path in target_folder.glob("*.pdf"):
+            if cv_path is not None:
+                try:
+                    if path.resolve() == cv_path.resolve():
+                        continue
+                except OSError:
+                    continue
+            return True
+        return False
+
+    def _exists_label(self, path_text: str | Path) -> str:
+        return "OK" if path_text and Path(path_text).exists() else "Absent"
+
     def _status_label(self, status: ApplicationStatus) -> str:
         return APPLICATION_STATUS_LABELS.get(status.value, status.value)
 
@@ -1689,6 +1827,46 @@ class MainWindow(QMainWindow):
             subprocess.Popen(["open", str(path)])
             return
         subprocess.Popen(["xdg-open", str(path)])
+
+    def _safe_open_path(self, path: Path, action: str) -> bool:
+        try:
+            self._open_path(path)
+        except OSError as exc:
+            self.user_logger.error(action, exc, context=str(path))
+            QMessageBox.warning(self, "Ouverture impossible", f"Impossible d'ouvrir:\n{path}")
+            return False
+        return True
+
+    def _open_existing_path(self, path_text: str, label: str) -> None:
+        if not path_text:
+            QMessageBox.information(self, label, f"Aucun fichier {label.lower()} disponible.")
+            return
+        path = Path(path_text)
+        if not path.exists():
+            QMessageBox.warning(self, label, f"Fichier introuvable:\n{path}")
+            return
+        self._safe_open_path(path, f"open_{label.lower().replace(' ', '_')}")
+
+    def _open_url(self, url: str) -> None:
+        try:
+            webbrowser.open(url)
+        except Exception as exc:
+            self.user_logger.error("open_project_url", exc, context=url)
+            QMessageBox.warning(self, "Projet public", f"Impossible d'ouvrir:\n{url}")
+
+    def _copy_project_payload_to_clipboard(self, plain_text: str, html: str) -> str:
+        clipboard = QApplication.clipboard()
+        mime = QMimeData()
+        mime.setText(plain_text)
+        if html:
+            mime.setHtml(html)
+        try:
+            clipboard.setMimeData(mime)
+        except Exception as exc:
+            self.user_logger.error("project_clipboard", exc, context=plain_text)
+            clipboard.setText(plain_text)
+            return "plain"
+        return "html"
 
     def _apply_style(self) -> None:
         self.setStyleSheet(
