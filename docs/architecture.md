@@ -6,7 +6,7 @@ Auto-CV is a personal, local-first software project.
 
 The target platforms are:
 
-- **Windows PC**: main application, data source of truth, local storage, local AI, document generation.
+- **Windows PC**: main application, data source of truth, local storage, deterministic automation, document generation.
 - **iPad**: companion access to the PC workspace when the PC is online and reachable.
 
 macOS is not a target for now.
@@ -111,7 +111,7 @@ The public repository owns the naming contract. The private engine can propose s
 
 ## GitHub Project Context
 
-Auto-CV should sync selected GitHub project metadata and content locally so the private engine can reuse real project evidence when adapting cover letters.
+Auto-CV should sync selected GitHub project metadata and content locally so Victor can reuse real project evidence when reviewing or adjusting cover letters.
 
 The sync layer should collect safe project context such as:
 
@@ -123,11 +123,11 @@ The sync layer should collect safe project context such as:
 - selected project highlights;
 - local notes added manually.
 
-The AI layer should use this context to ground letter adjustments in real projects, without inventing experience.
+Any future AI layer should use this context to ground letter adjustments in real projects, without inventing experience.
 
 ## Mail Drafting
 
-The V1 can delegate mail drafting to the private local AI engine:
+The reliability-first V1 prepares mail drafts through deterministic templates:
 
 - email subject;
 - email body;
@@ -135,11 +135,11 @@ The V1 can delegate mail drafting to the private local AI engine:
 - salary application tone;
 - freelance proposal tone.
 
-The public repository exposes the mail draft contract. The private engine owns the prompt and generation details.
+The public repository exposes the mail draft contract. A private engine can later replace or enrich the deterministic draft only behind an explicit setting.
 
 ## Local AI Model
 
-The V1 targets Qwen3-14B GGUF through a local llama.cpp-compatible runner.
+Local AI is disabled in the reliability-first V1. The optional future target is Qwen3-14B GGUF through a local llama.cpp-compatible runner.
 
 Default model reference:
 
@@ -153,7 +153,7 @@ Quality option:
 Qwen/Qwen3-14B-GGUF:Q5_K_M
 ```
 
-The model is used for cover letter adaptation, freelance proposal drafting, and mail subject/body drafting. It is not used to modify the CV content in V1.
+The model is not required for V1 operation. If re-enabled later, it can be used for cover letter adaptation, freelance proposal drafting, and mail subject/body drafting. It should never modify the CV content.
 
 See `docs/local-ai.md` for the dedicated local AI profile.
 

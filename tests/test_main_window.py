@@ -40,8 +40,9 @@ def test_main_window_can_be_created_offscreen(tmp_path, monkeypatch) -> None:
     assert window.windowTitle() == "Auto-CV"
     assert window.table.columnCount() == 7
     assert window.stack.count() == 6
-    assert window.chat_input.placeholderText() == "Message a Qwen..."
-    assert "Glisse un projet GitHub" in window.chat_transcript.toPlainText()
+    assert window.chat_input.placeholderText() == "Chat IA desactive en V1"
+    assert window.chat_input.isEnabled() is False
+    assert "Mode V1 sans IA" in window.chat_transcript.toPlainText()
     window.show_view("Documents")
     assert window.documents_table.rowCount() == 2
     window.show_view("Parametres")
@@ -128,6 +129,56 @@ def test_main_window_updates_status_offscreen(tmp_path, monkeypatch) -> None:
     app.processEvents()
 
 
+def test_main_window_prepares_deterministic_mail_without_ai(tmp_path, monkeypatch) -> None:
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    monkeypatch.setattr(
+        "autocv.ui.main_window.check_local_ai_status",
+        lambda base_url: LocalAiStatus(online=False, message="offline"),
+    )
+    captured = {}
+
+    class FakePreviewDialog:
+        def __init__(self, **kwargs) -> None:
+            captured.update(kwargs)
+
+        def exec(self) -> int:
+            return 0
+
+    monkeypatch.setattr("autocv.ui.main_window.PreviewDialog", FakePreviewDialog)
+    source_dir = tmp_path / "GENERIQUE PRO"
+    source_dir.mkdir()
+    (source_dir / "cv.pdf").write_text("CV")
+    (source_dir / "lettre.docx").write_text("Lettre")
+    settings = replace(
+        AppSettings.load(),
+        data_dir=tmp_path / "data",
+        project_context_cache_dir=tmp_path / "data" / "project_context",
+        document_source_dir=source_dir,
+        result_dir=source_dir / "Auto-CV" / "Result",
+        generic_cv_filename="cv.pdf",
+        generic_cover_letter_filename="lettre.docx",
+    )
+
+    app = QApplication.instance() or QApplication([])
+    window = MainWindow(settings)
+    window.service.create_job_application(company="Airbus", title="Data Scientist")
+    window.refresh()
+    window.table.selectRow(0)
+
+    window.prepare_selected_mail()
+
+    output_path = captured["output_path"]
+    content = output_path.read_text(encoding="utf-8")
+    assert "Candidature - Data Scientist - Victor Aubry" in content
+    assert "Bonjour," in content
+    assert "Airbus" in content
+    assert "Data Scientist" in content
+    assert window.ai_server is None
+
+    window.close()
+    app.processEvents()
+
+
 def test_main_window_does_not_start_ai_on_launch(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
     monkeypatch.setattr(
@@ -154,7 +205,7 @@ def test_main_window_does_not_start_ai_on_launch(tmp_path, monkeypatch) -> None:
     window = MainWindow(settings)
 
     assert fake_server.ensure_calls == 0
-    assert "IA locale: standby" in window.local_ai_status.text()
+    assert "IA locale: desactivee" in window.local_ai_status.text()
 
     window.close()
     app.processEvents()
@@ -178,6 +229,7 @@ def test_main_window_starts_ai_when_chat_is_triggered(tmp_path, monkeypatch) -> 
         result_dir=source_dir / "Auto-CV" / "Result",
         generic_cv_filename="cv.pdf",
         generic_cover_letter_filename="lettre.docx",
+        local_ai_enabled=True,
     )
 
     app = QApplication.instance() or QApplication([])

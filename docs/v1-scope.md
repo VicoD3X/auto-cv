@@ -41,55 +41,44 @@ Workflow principal :
 Offre d'emploi
   -> fiche candidature
   -> CV generique
-  -> lettre adaptee par IA locale
+  -> lettre generique copiee et renommee
+  -> ajustement manuel si necessaire
   -> validation humaine
   -> export
   -> statut
 ```
 
-L'IA locale doit faire des ajustements legers :
+La V1 sans LLM doit etre fiable avant tout :
 
-- adapter l'accroche au poste ;
-- reprendre les mots importants de l'offre ;
-- relier l'offre a des projets data reels ;
-- conserver un ton professionnel francais ;
-- ne pas inventer d'experience.
-
-Modele V1 :
-
-```text
-Qwen3-14B GGUF Q4_K_M
-```
-
-Option qualite apres validation locale :
-
-```text
-Qwen3-14B GGUF Q5_K_M
-```
+- copier les documents sources sans les modifier ;
+- renommer les sorties proprement ;
+- garder la lettre generique editable ;
+- laisser l'ajustement fin a la validation humaine ;
+- ne jamais lancer de modele local par defaut.
 
 Le CV est copie et renomme proprement dans le dossier `Result`, mais son contenu n'est pas modifie par IA.
 
-La lettre adaptee est sauvegardee dans `Result` avec un nom explicite.
+La lettre generique copiee est sauvegardee dans `Result` avec un nom explicite.
 
-Le mail de candidature peut etre prepare par l'IA locale :
+Le mail de candidature est prepare par un template deterministe :
 
 - objet du mail ;
 - corps du mail ;
 - rappel des pieces jointes ;
 - ton professionnel court.
 
-Dans la premiere integration, les sorties IA sont sauvegardees comme previsualisations `.txt` dans `Result`. La reconstruction DOCX/PDF vient ensuite avec la couche documentaire.
+Les brouillons de mail sont sauvegardes comme previsualisations `.txt` dans `Result`.
 
 ## Projets GitHub
 
-Auto-CV doit synchroniser les projets GitHub pour donner du contexte au moteur local.
+Auto-CV doit synchroniser les projets GitHub pour garder un contexte projet local exploitable.
 
 Objectif :
 
 - recuperer les projets publics pertinents ;
 - extraire un resume local exploitable ;
 - identifier les technos et themes ;
-- permettre a l'IA de citer ou valoriser les bons projets dans une lettre.
+- permettre a Victor de retrouver rapidement les projets pertinents a citer dans une lettre.
 
 La synchronisation GitHub sert de contexte. Elle ne remplace pas la validation humaine.
 
@@ -107,18 +96,18 @@ Elle doit permettre de suivre une opportunite de mission avec :
 - message/proposition associe ;
 - export ou note finale.
 
-La sortie IA n'est pas une lettre de motivation, mais une proposition courte :
+La sortie freelance V1 reste une base documentaire legere :
 
 ```text
 Besoin client
-  -> projets pertinents
-  -> approche proposee
-  -> message freelance
+  -> documents generiques copies
+  -> notes de mission
+  -> mail deterministe si necessaire
 ```
 
 Cette face reste plus legere que la partie salariat.
 
-Le message freelance et son objet peuvent aussi etre prepares par l'IA locale.
+Le message freelance et son objet peuvent etre prepares par template local.
 
 ## Renommage Intelligent
 
@@ -181,8 +170,9 @@ Cas d'usage V1 :
 La V1 ne fait pas encore :
 
 - modification IA du CV ;
+- adaptation IA automatique des lettres ;
+- generation IA des propositions freelance ;
 - envoi Gmail automatique ;
-- generation mail sans moteur IA local ;
 - scoring avance des offres ;
 - app iPad autonome ;
 - gestion CRM freelance complete ;

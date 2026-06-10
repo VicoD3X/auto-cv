@@ -38,7 +38,7 @@ from PySide6.QtWidgets import (
 from autocv.ai import LocalAiServerManager, check_local_ai_status
 from autocv.conversion import ConversionRequest, DocumentFormat, LocalDocumentConverter
 from autocv.documents import DocumentScanner, ScannedDocument
-from autocv.documents.naming import DocumentKind
+from autocv.documents.naming import DocumentKind, build_document_filename, build_result_path
 from autocv.domain import ApplicationRecord, ApplicationStatus, OpportunityType
 from autocv.i18n.fr_fr import APPLICATION_STATUS_LABELS
 from autocv.infrastructure import (
@@ -47,7 +47,7 @@ from autocv.infrastructure import (
     JobOfferRepository,
     LocalDatabase,
 )
-from autocv.mail import MailDraftRequest
+from autocv.mail import MailDraft, MailDraftRequest
 from autocv.projects import GitHubProjectContext, GitHubProjectSync
 from autocv.settings.app_settings import AppSettings, SettingsManager, result_dir_for
 from autocv.use_cases import BootstrapWorkspace, MissingDocumentSourceError, V1AiService, V1ApplicationService
@@ -72,9 +72,9 @@ class MainWindow(QMainWindow):
             QApplication.instance().setFont(QFont("Segoe UI", 9))
 
         self.settings_manager = SettingsManager(settings.data_dir / "settings.json")
-        self.ai_server = LocalAiServerManager(settings)
+        self.ai_server = LocalAiServerManager(settings) if settings.local_ai_enabled else None
         self.converter = LocalDocumentConverter()
-        self.ai_service = V1AiService()
+        self.ai_service = V1AiService() if settings.local_ai_enabled else None
 
         self.current_records: list[ApplicationRecord] = []
         self.job_records: list[ApplicationRecord] = []
@@ -114,7 +114,8 @@ class MainWindow(QMainWindow):
         self.job_offers = JobOfferRepository(self.database)
         self.freelance_opportunities = FreelanceOpportunityRepository(self.database)
         self.applications = ApplicationRecordRepository(self.database)
-        self.ai_server = LocalAiServerManager(settings)
+        self.ai_server = LocalAiServerManager(settings) if settings.local_ai_enabled else None
+        self.ai_service = V1AiService() if settings.local_ai_enabled else None
 
     def _reload_runtime(self, settings: AppSettings) -> None:
         self._bind_runtime(settings)
@@ -391,7 +392,7 @@ class MainWindow(QMainWindow):
     def _build_projects_view(self) -> QWidget:
         page, layout, header = self._new_page(
             "Projets GitHub",
-            "Cache local du contexte public VicoD3X pour aider les ajustements IA",
+            "Cache local du contexte public VicoD3X pour retrouver les projets pertinents",
         )
 
         self.github_owner_input = QLineEdit()
@@ -441,13 +442,17 @@ class MainWindow(QMainWindow):
         self.settings_letter_path = QLineEdit()
         self.settings_letter_path.setReadOnly(True)
         self.settings_github_owner_input = QLineEdit()
+        self.settings_ai_mode_input = QLineEdit()
+        self.settings_ai_mode_input.setReadOnly(True)
         self.settings_ai_url_input = QLineEdit()
+        self.settings_ai_url_input.setEnabled(False)
 
         form.addRow("Dossier source", self.settings_source_dir)
         form.addRow("Dossier Result", self.settings_result_dir)
         form.addRow("CV source", self.settings_cv_path)
         form.addRow("Lettre source", self.settings_letter_path)
         form.addRow("GitHub owner", self.settings_github_owner_input)
+        form.addRow("Mode IA", self.settings_ai_mode_input)
         form.addRow("IA locale URL", self.settings_ai_url_input)
         layout.addWidget(form_panel)
         layout.addStretch()
@@ -496,10 +501,12 @@ class MainWindow(QMainWindow):
 
         chat_input_row = QHBoxLayout()
         self.chat_input = QLineEdit()
-        self.chat_input.setPlaceholderText("Message a Qwen...")
+        self.chat_input.setPlaceholderText("Chat IA desactive en V1")
+        self.chat_input.setEnabled(False)
         self.chat_input.returnPressed.connect(self.send_chat_message)
         self.chat_send_button = QPushButton("Envoyer")
         self.chat_send_button.setObjectName("PrimaryButton")
+        self.chat_send_button.setEnabled(False)
         self.chat_send_button.clicked.connect(self.send_chat_message)
         chat_input_row.addWidget(self.chat_input, stretch=1)
         chat_input_row.addWidget(self.chat_send_button)
@@ -510,11 +517,12 @@ class MainWindow(QMainWindow):
         actions_layout = QVBoxLayout(actions)
         actions_layout.setContentsMargins(12, 12, 12, 12)
         actions_layout.setSpacing(8)
-        actions_title = QLabel("Actions IA")
+        actions_title = QLabel("Actions V1")
         actions_title.setObjectName("ActionTitle")
         actions_layout.addWidget(actions_title)
         self.adapt_letter_button = QPushButton("Adapter la lettre")
         self.adapt_letter_button.setObjectName("ActionButton")
+        self.adapt_letter_button.setEnabled(False)
         self.adapt_letter_button.clicked.connect(self.adapt_selected_text)
         self.prepare_mail_button = QPushButton("Preparer le mail")
         self.prepare_mail_button.setObjectName("ActionButton")
@@ -713,10 +721,24 @@ class MainWindow(QMainWindow):
         self.settings_cv_path.setText(str(self.document_source.cv_path))
         self.settings_letter_path.setText(str(self.document_source.cover_letter_path))
         self.settings_github_owner_input.setText(self.settings.github_owner)
+        self.settings_ai_mode_input.setText(
+            "Desactivee - V1 sans LLM" if not self.settings.local_ai_enabled else "Activee"
+        )
         self.settings_ai_url_input.setText(self.settings.local_ai_base_url)
         self.github_owner_input.setText(self.settings.github_owner)
 
     def _update_ai_status(self) -> None:
+        if not self.settings.local_ai_enabled:
+            self.local_ai_status.setText("IA locale: desactivee")
+            self.chat_input.setEnabled(False)
+            self.chat_send_button.setEnabled(False)
+            self.adapt_letter_button.setEnabled(False)
+            self.prepare_mail_button.setEnabled(True)
+            return
+        self.chat_input.setEnabled(True)
+        self.chat_send_button.setEnabled(True)
+        self.adapt_letter_button.setEnabled(True)
+        self.prepare_mail_button.setEnabled(True)
         status = check_local_ai_status(self.settings.local_ai_base_url)
         if status.online:
             self.local_ai_status.setText("IA locale: online")
@@ -947,6 +969,8 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "GitHub", result.message)
 
     def send_chat_message(self) -> None:
+        if not self.settings.local_ai_enabled:
+            return
         message = self.chat_input.text().strip()
         if not message:
             return
@@ -1003,7 +1027,17 @@ class MainWindow(QMainWindow):
         if record is None:
             QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
             return
+        if not self.settings.local_ai_enabled:
+            QMessageBox.information(
+                self,
+                "IA desactivee",
+                "L'adaptation automatique de lettre est desactivee pour la V1 sans LLM.",
+            )
+            return
         if not self._ensure_ai_ready():
+            return
+        if self.ai_service is None:
+            QMessageBox.warning(self, "IA locale indisponible", "Service IA non initialise.")
             return
 
         target_name, role = self._target_for_record(record)
@@ -1036,29 +1070,35 @@ class MainWindow(QMainWindow):
         if record is None:
             QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
             return
-        if not self._ensure_ai_ready():
-            return
 
         target_name, role = self._target_for_record(record)
-        draft = self.ai_service.draft_mail(
-            request=MailDraftRequest(
-                opportunity_type=record.opportunity_type,
-                target_name=target_name,
-                role_or_mission=role,
-                context=self._context_for_record(record),
-                attachment_paths=(
-                    record.cv_output_path or record.cv_path,
-                    record.cover_letter_output_path or record.cover_letter_source_path,
-                ),
+        if self.settings.local_ai_enabled:
+            if not self._ensure_ai_ready():
+                return
+            if self.ai_service is None:
+                QMessageBox.warning(self, "IA locale indisponible", "Service IA non initialise.")
+                return
+            draft = self.ai_service.draft_mail(
+                request=MailDraftRequest(
+                    opportunity_type=record.opportunity_type,
+                    target_name=target_name,
+                    role_or_mission=role,
+                    context=self._context_for_record(record),
+                    attachment_paths=(
+                        record.cv_output_path or record.cv_path,
+                        record.cover_letter_output_path or record.cover_letter_source_path,
+                    ),
+                )
             )
-        )
-        if not draft.available:
-            self._append_chat_message("assistant", draft.body)
-            QMessageBox.warning(self, "IA locale indisponible", draft.body)
-            return
+            if not draft.available:
+                self._append_chat_message("assistant", draft.body)
+                QMessageBox.warning(self, "IA locale indisponible", draft.body)
+                return
+        else:
+            draft = self._deterministic_mail_draft(record, target_name, role)
 
         content = f"Objet: {draft.subject}\n\nCorps:\n{draft.body}"
-        output = self.ai_service.save_preview(
+        output = self._save_mail_preview(
             result_dir=self.settings.result_dir,
             kind=DocumentKind.EMAIL_DRAFT,
             target_name=target_name,
@@ -1074,9 +1114,77 @@ class MainWindow(QMainWindow):
             parent=self,
         ).exec()
         self._append_chat_message("assistant", f"Mail prepare:\nObjet: {draft.subject}\n\n{draft.body}")
-        self._schedule_ai_idle_stop()
+        if self.settings.local_ai_enabled:
+            self._schedule_ai_idle_stop()
+
+    def _deterministic_mail_draft(
+        self,
+        record: ApplicationRecord,
+        target_name: str,
+        role_or_mission: str,
+    ) -> MailDraft:
+        if record.opportunity_type == OpportunityType.FREELANCE:
+            subject = f"Proposition - {role_or_mission} - Victor Aubry"
+            body = "\n\n".join(
+                [
+                    "Bonjour,",
+                    (
+                        f"Je vous contacte au sujet de la mission {role_or_mission} "
+                        f"pour {target_name}."
+                    ),
+                    (
+                        "Vous trouverez en pieces jointes mon CV ainsi que le document associe. "
+                        "Je reste disponible pour echanger sur le besoin, le perimetre et les "
+                        "prochaines etapes."
+                    ),
+                    "Bien cordialement,\nVictor Aubry",
+                ]
+            )
+            return MailDraft(subject=subject, body=body, source="deterministic_v1", available=True)
+
+        subject = f"Candidature - {role_or_mission} - Victor Aubry"
+        body = "\n\n".join(
+            [
+                "Bonjour,",
+                (
+                    f"Je vous contacte afin de vous transmettre ma candidature pour le poste "
+                    f"de {role_or_mission} chez {target_name}."
+                ),
+                (
+                    "Vous trouverez en pieces jointes mon CV ainsi que ma lettre de motivation. "
+                    "Je reste disponible pour tout echange complementaire."
+                ),
+                "Bien cordialement,\nVictor Aubry",
+            ]
+        )
+        return MailDraft(subject=subject, body=body, source="deterministic_v1", available=True)
+
+    def _save_mail_preview(
+        self,
+        *,
+        result_dir: Path,
+        kind: DocumentKind,
+        target_name: str,
+        role_or_mission: str,
+        date: str,
+        content: str,
+    ) -> Path:
+        result_dir.mkdir(parents=True, exist_ok=True)
+        filename = build_document_filename(
+            kind=kind,
+            target_name=target_name,
+            role_or_mission=role_or_mission,
+            date=date,
+            extension="txt",
+        )
+        path = build_result_path(result_dir, filename)
+        path.write_text(content, encoding="utf-8")
+        return path
 
     def _ensure_ai_ready(self) -> bool:
+        if not self.settings.local_ai_enabled or self.ai_server is None:
+            self.local_ai_status.setText("IA locale: desactivee")
+            return False
         self.local_ai_status.setText("IA locale: demarrage...")
         QApplication.processEvents()
         result = self.ai_server.ensure_running()
@@ -1093,6 +1201,8 @@ class MainWindow(QMainWindow):
         self.ai_idle_timer.start(self.ai_idle_timeout_ms)
 
     def stop_ai_after_idle(self) -> None:
+        if self.ai_server is None:
+            return
         if monotonic() - self.ai_last_activity < (self.ai_idle_timeout_ms / 1000):
             self._schedule_ai_idle_stop()
             return
@@ -1101,7 +1211,7 @@ class MainWindow(QMainWindow):
         self._update_ai_status()
 
     def closeEvent(self, event) -> None:
-        if self.ai_server.is_online():
+        if self.ai_server is not None and self.ai_server.is_online():
             self.ai_server.stop()
         super().closeEvent(event)
 
@@ -1128,9 +1238,7 @@ class MainWindow(QMainWindow):
             }.get(role, role)
             lines.append(f"{label}\n{text}")
         if not lines:
-            lines.append(
-                "Auto-CV\nGlisse un projet GitHub ici ou pose une question a Qwen sur la candidature."
-            )
+            lines.append("Auto-CV\nMode V1 sans IA. Les actions locales restent disponibles.")
         self.chat_transcript.setPlainText("\n\n".join(lines))
         self.chat_transcript.moveCursor(QTextCursor.MoveOperation.End)
 

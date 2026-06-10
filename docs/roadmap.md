@@ -22,8 +22,7 @@
 - Ajouter la gestion des offres d'emploi.
 - Ajouter une premiere gestion legere des opportunites freelance.
 - Ajouter la synchronisation locale du contexte projets GitHub.
-- Ajouter l'adaptation locale IA des lettres et messages freelance via Qwen3-14B Q4_K_M.
-- Ajouter la conception IA locale de l'objet et du corps de mail.
+- Ajouter une preparation de mail deterministe sans LLM.
 - Ajouter la conversion DOCX/PDF et XLSX/PDF via adaptateurs locaux.
 - Ajouter les fiches d'offres.
 - Ajouter le suivi des statuts de candidature.
@@ -43,6 +42,7 @@
 - Ajouter des regles deterministes d'extraction et de scoring.
 - Integrer un modele local via un runner interchangeable.
 - Benchmarker des modeles open source candidats.
+- Reactiver l'adaptation locale IA seulement si elle apporte un gain clair face au workflow deterministe.
 - Ajouter une validation humaine obligatoire avant sortie finale.
 - Garder la modification IA du CV hors scope tant que le CV generique suffit.
 

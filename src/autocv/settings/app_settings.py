@@ -23,6 +23,7 @@ class AppSettings:
     github_owner: str
     github_project_sync_enabled: bool
     project_context_cache_dir: Path
+    local_ai_enabled: bool
     local_ai_model_repo: str
     local_ai_model_name: str
     local_ai_default_quantization: str
@@ -52,6 +53,7 @@ class AppSettings:
             github_owner="VicoD3X",
             github_project_sync_enabled=False,
             project_context_cache_dir=data_dir / "project_context",
+            local_ai_enabled=False,
             local_ai_model_repo="Qwen/Qwen3-14B-GGUF",
             local_ai_model_name="Qwen3-14B",
             local_ai_default_quantization="Q4_K_M",
@@ -110,6 +112,7 @@ class SettingsManager:
                 data.get("github_project_sync_enabled", defaults.github_project_sync_enabled)
             ),
             project_context_cache_dir=defaults.project_context_cache_dir,
+            local_ai_enabled=bool(data.get("local_ai_enabled", defaults.local_ai_enabled)),
             local_ai_model_repo=defaults.local_ai_model_repo,
             local_ai_model_name=defaults.local_ai_model_name,
             local_ai_default_quantization=defaults.local_ai_default_quantization,
@@ -126,6 +129,7 @@ class SettingsManager:
             "selected_cover_letter_path": _path_to_json(settings.selected_cover_letter_path),
             "github_owner": settings.github_owner,
             "github_project_sync_enabled": settings.github_project_sync_enabled,
+            "local_ai_enabled": settings.local_ai_enabled,
             "local_ai_base_url": settings.local_ai_base_url,
         }
         self.settings_path.write_text(

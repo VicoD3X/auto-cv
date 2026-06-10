@@ -9,6 +9,7 @@ def test_settings_manager_loads_defaults_without_json(tmp_path) -> None:
     assert settings.document_source_dir.name == "GENERIQUE PRO"
     assert settings.result_dir == settings.document_source_dir / "Auto-CV" / "Result"
     assert settings.github_owner == "VicoD3X"
+    assert settings.local_ai_enabled is False
 
 
 def test_settings_manager_saves_and_loads_local_settings(tmp_path) -> None:

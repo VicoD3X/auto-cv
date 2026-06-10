@@ -1,8 +1,16 @@
 # Auto-CV - Local AI
 
+## Current V1 Position
+
+Local AI is **disabled for the reliability-first V1**.
+
+The desktop app must remain usable without loading a local model. The V1 uses deterministic workflows for document copying, naming, tracking, conversion, GitHub context display, and mail draft preparation.
+
+The local AI layer remains documented as an optional future/experimental capability behind an explicit setting.
+
 ## Model Choice
 
-The V1 targets:
+The deferred local AI profile targets:
 
 ```text
 Qwen3-14B GGUF
@@ -11,7 +19,7 @@ Quality option:       Q5_K_M
 Runner:               llama.cpp
 ```
 
-The default starts with `Q4_K_M` because the V1 needs reliable local execution before chasing higher quality. `Q5_K_M` remains the quality option if local performance is comfortable.
+The default starts with `Q4_K_M` because local execution must be validated before chasing higher quality. `Q5_K_M` remains the quality option if local performance is comfortable.
 
 ## Public / Private Split
 
@@ -31,9 +39,9 @@ The private engine contains:
 - mail generation logic;
 - project-context selection rules.
 
-## V1 AI Tasks
+## Deferred AI Tasks
 
-Qwen3-14B is used for:
+Qwen3-14B may later be used for:
 
 - adapting the generic cover letter to a job offer;
 - drafting a short freelance proposal;
@@ -41,14 +49,14 @@ Qwen3-14B is used for:
 - preparing an email body;
 - using synchronized GitHub project context as evidence.
 
-The desktop UI calls these tasks through the public `V1AiService`:
+When re-enabled, the desktop UI can call these tasks through the public `V1AiService`:
 
 ```text
 Adapter la lettre -> cover_letter_adaptation or freelance_proposal
 Préparer le mail -> mail_draft
 ```
 
-When the private engine is unavailable, the app stays usable and shows a clear local-AI unavailable message.
+In the reliability-first V1, the app does not require the private engine and does not start the local model by default.
 
 Qwen3-14B is not used for:
 

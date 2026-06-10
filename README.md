@@ -25,13 +25,13 @@ This keeps the GitHub repository clean and internationally readable while preser
 
 Auto-CV is not a commercial SaaS and not a web app.
 
-The core application runs locally on a Windows PC. When the PC is on, it can expose a lightweight private remote layer so an iPad can access the same local workspace. The PC remains the source of truth: data, documents, local AI, and application history live on the PC disk.
+The core application runs locally on a Windows PC. When the PC is on, it can expose a lightweight private remote layer so an iPad can access the same local workspace. The PC remains the source of truth: data, documents, automation rules, and application history live on the PC disk.
 
 ```text
 Windows PC app
   -> local database
   -> local document storage
-  -> local AI / automation engine
+  -> deterministic automation engine
   -> optional private remote server
        -> iPad companion access
 ```
@@ -56,9 +56,9 @@ The first useful version should help with:
 
 - managing reusable CV and cover letter versions;
 - storing job offers and company context;
-- adapting generic cover letters with a local private AI engine;
+- copying and renaming the reusable generic CV and cover letter into a clean result workspace;
 - syncing GitHub project context to support those letter adjustments;
-- preparing email subjects and bodies through the private local AI engine;
+- preparing deterministic email drafts without requiring a local LLM;
 - writing generated and sorted results to `GENERIQUE PRO/Auto-CV/Result`;
 - applying smart document names for CVs, cover letters, proposals, and mail drafts;
 - converting DOCX/PDF and Excel-related document formats;
@@ -67,7 +67,7 @@ The first useful version should help with:
 - keeping a lightweight freelance opportunity track;
 - optionally preparing or sending Gmail messages with attachments.
 
-The long-term engine can combine deterministic rules, templates, local machine learning, and a local open-source LLM runner.
+The V1 deliberately prioritizes deterministic reliability over LLM generation. The long-term engine can still combine rules, templates, local machine learning, and an optional local open-source LLM runner later.
 
 ## Public / Private Boundary
 
@@ -79,13 +79,13 @@ This keeps the repository readable and portfolio-friendly while preserving the i
 
 ## Technical Foundation
 
-- Python for the application core, automation, AI workflows, and data processing.
+- Python for the application core, automation workflows, and data processing.
 - PySide6 / Qt for the Windows desktop interface.
 - SQLite for local-first storage.
 - Pydantic for typed schemas.
 - SQLAlchemy or SQLModel for persistence.
 - FastAPI as an optional private remote layer for iPad access.
-- Local AI through a pluggable adapter, with models benchmarked later.
+- Optional local AI through a pluggable adapter, kept disabled for the reliability-first V1.
 
 ## Repository
 
