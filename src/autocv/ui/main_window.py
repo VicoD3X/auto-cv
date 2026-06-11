@@ -29,6 +29,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QSizePolicy,
+    QScrollArea,
     QStackedWidget,
     QTableWidget,
     QTableWidgetItem,
@@ -75,9 +76,9 @@ VIEW_NAMES = [
     "Candidatures",
     "Freelance",
     "Documents",
-    "Pre-suppression",
+    "Pré-suppression",
     "Projets publics",
-    "Parametres",
+    "Paramètres",
 ]
 
 
@@ -164,7 +165,14 @@ class MainWindow(QMainWindow):
         self.detail_dock.setObjectName("DetailDock")
         self.detail_dock.setFeatures(QDockWidget.DockWidgetFeature.NoDockWidgetFeatures)
         self.detail_dock.setTitleBarWidget(QWidget())
-        self.detail_dock.setWidget(self._build_detail_panel())
+        detail_scroll = QScrollArea()
+        detail_scroll.setObjectName("DetailScroll")
+        detail_scroll.setWidgetResizable(True)
+        detail_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        detail_scroll.setFrameShape(QFrame.Shape.NoFrame)
+        detail_scroll.setFixedWidth(340)
+        detail_scroll.setWidget(self._build_detail_panel())
+        self.detail_dock.setWidget(detail_scroll)
         self.addDockWidget(Qt.DockWidgetArea.RightDockWidgetArea, self.detail_dock)
 
     def _build_sidebar(self) -> QWidget:
@@ -178,7 +186,7 @@ class MainWindow(QMainWindow):
 
         title = QLabel("Auto-CV")
         title.setObjectName("AppTitle")
-        subtitle = QLabel("Assistant personnel")
+        subtitle = QLabel("Atelier documentaire")
         subtitle.setObjectName("AppSubtitle")
         layout.addWidget(title)
         layout.addWidget(subtitle)
@@ -254,7 +262,7 @@ class MainWindow(QMainWindow):
     def _build_dashboard_view(self) -> QWidget:
         page, layout, header = self._new_page(
             "Tableau de bord",
-            "Vue rapide des candidatures, missions et sorties pretes dans Result",
+            "Vue rapide des candidatures, missions et sorties prêtes dans Result",
         )
 
         new_job = QPushButton("+ Candidature")
@@ -268,8 +276,8 @@ class MainWindow(QMainWindow):
 
         metrics = QHBoxLayout()
         self.metric_total = MetricBox("Total", "0")
-        self.metric_ready = MetricBox("Pret", "0")
-        self.metric_sent = MetricBox("Envoye", "0")
+        self.metric_ready = MetricBox("Prêt", "0")
+        self.metric_sent = MetricBox("Envoyé", "0")
         self.metric_freelance = MetricBox("Freelance", "0")
         for metric in [self.metric_total, self.metric_ready, self.metric_sent, self.metric_freelance]:
             metrics.addWidget(metric)
@@ -288,7 +296,7 @@ class MainWindow(QMainWindow):
     def _build_jobs_view(self) -> QWidget:
         page, layout, header = self._new_page(
             "Candidatures",
-            "Suivi des candidatures salariees avec statut modifiable",
+            "Suivi des candidatures salariées avec statut modifiable",
         )
 
         new_job = QPushButton("+ Candidature")
@@ -322,7 +330,7 @@ class MainWindow(QMainWindow):
     def _build_freelance_view(self) -> QWidget:
         page, layout, header = self._new_page(
             "Freelance",
-            "Prefiguration legere du suivi mission et prospection freelance",
+            "Préfiguration légère du suivi mission et prospection freelance",
         )
 
         new_freelance = QPushButton("+ Mission freelance")
@@ -362,10 +370,10 @@ class MainWindow(QMainWindow):
     def _build_documents_view(self) -> QWidget:
         page, layout, header = self._new_page(
             "Documents",
-            "Scan du dossier source, selection du CV et de la lettre, conversions locales vers Result",
+            "Scan du dossier source, sélection du CV et de la lettre, conversions locales vers Result",
         )
 
-        refresh_button = QPushButton("Rafraichir")
+        refresh_button = QPushButton("Rafraîchir")
         refresh_button.setObjectName("SecondaryButton")
         refresh_button.clicked.connect(self.refresh)
         choose_source = QPushButton("Changer dossier")
@@ -381,13 +389,13 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.documents_table, stretch=1)
 
         selection_actions = QHBoxLayout()
-        self.set_cv_button = QPushButton("Definir comme CV")
+        self.set_cv_button = QPushButton("Définir comme CV")
         self.set_cv_button.setObjectName("ActionButton")
         self.set_cv_button.clicked.connect(lambda: self.set_selected_document("cv"))
-        self.set_letter_button = QPushButton("Definir comme lettre")
+        self.set_letter_button = QPushButton("Définir comme lettre")
         self.set_letter_button.setObjectName("ActionButton")
         self.set_letter_button.clicked.connect(lambda: self.set_selected_document("letter"))
-        self.duplicate_document_button = QPushButton("Dupliquer & ouvrir")
+        self.duplicate_document_button = QPushButton("Dupliquer et ouvrir")
         self.duplicate_document_button.setObjectName("PrimaryButton")
         self.duplicate_document_button.clicked.connect(self.duplicate_selected_document_for_edit)
         self.finalize_document_button = QPushButton("Finaliser modification")
@@ -433,11 +441,11 @@ class MainWindow(QMainWindow):
 
     def _build_trash_view(self) -> QWidget:
         page, layout, header = self._new_page(
-            "Pre-suppression",
-            "Copies annulees ou obsoletes conservees avant suppression definitive",
+            "Pré-suppression",
+            "Copies annulées ou obsolètes conservées avant suppression définitive",
         )
 
-        refresh_button = QPushButton("Rafraichir")
+        refresh_button = QPushButton("Rafraîchir")
         refresh_button.setObjectName("SecondaryButton")
         refresh_button.clicked.connect(self.refresh)
         open_trash = QPushButton("Ouvrir dossier")
@@ -449,7 +457,7 @@ class MainWindow(QMainWindow):
         self.trash_table = QTableWidget(0, 7)
         self.trash_table.setObjectName("ApplicationTable")
         self.trash_table.setHorizontalHeaderLabels(
-            ["Raison", "Fichier", "Date", "Suppression auto", "Taille", "Chemin original", "Pre-suppression"]
+            ["Raison", "Fichier", "Date", "Suppression auto", "Taille", "Chemin original", "Pré-suppression"]
         )
         self._configure_table(self.trash_table)
         layout.addWidget(self.trash_table, stretch=1)
@@ -458,7 +466,7 @@ class MainWindow(QMainWindow):
         self.restore_trash_button = QPushButton("Restaurer")
         self.restore_trash_button.setObjectName("PrimaryButton")
         self.restore_trash_button.clicked.connect(self.restore_selected_trash_entry)
-        self.delete_trash_button = QPushButton("Supprimer definitivement")
+        self.delete_trash_button = QPushButton("Supprimer définitivement")
         self.delete_trash_button.setObjectName("DangerButton")
         self.delete_trash_button.clicked.connect(self.delete_selected_trash_entry)
         actions.addWidget(self.restore_trash_button)
@@ -517,8 +525,8 @@ class MainWindow(QMainWindow):
 
     def _build_settings_view(self) -> QWidget:
         page, layout, header = self._new_page(
-            "Parametres",
-            "Configuration locale persistee dans ~/.autocv/settings.json",
+            "Paramètres",
+            "Configuration locale persistée dans ~/.autocv/settings.json",
         )
 
         choose_source = QPushButton("Changer dossier source")
@@ -554,9 +562,7 @@ class MainWindow(QMainWindow):
         form.addRow("Dossier Result", self.settings_result_dir)
         form.addRow("CV source", self.settings_cv_path)
         form.addRow("Lettre source", self.settings_letter_path)
-        form.addRow("GitHub owner", self.settings_github_owner_input)
-        form.addRow("Mode IA", self.settings_ai_mode_input)
-        form.addRow("IA locale URL", self.settings_ai_url_input)
+        form.addRow("Compte GitHub public", self.settings_github_owner_input)
         layout.addWidget(form_panel)
         layout.addStretch()
         return page
@@ -564,17 +570,17 @@ class MainWindow(QMainWindow):
     def _build_detail_panel(self) -> QWidget:
         panel = QFrame()
         panel.setObjectName("DetailPanel")
-        panel.setFixedWidth(340)
+        panel.setMinimumWidth(320)
 
         layout = QVBoxLayout(panel)
         layout.setContentsMargins(18, 20, 18, 20)
-        layout.setSpacing(12)
+        layout.setSpacing(10)
 
-        title = QLabel("Detail")
+        title = QLabel("Détail")
         title.setObjectName("PanelTitle")
         layout.addWidget(title)
 
-        self.detail_title = QLabel("Aucune selection")
+        self.detail_title = QLabel("Aucune sélection")
         self.detail_title.setObjectName("DetailTitle")
         self.detail_title.setWordWrap(True)
         layout.addWidget(self.detail_title)
@@ -587,10 +593,10 @@ class MainWindow(QMainWindow):
         self.detail_paths = QTextEdit()
         self.detail_paths.setObjectName("PathBox")
         self.detail_paths.setReadOnly(True)
-        self.detail_paths.setMinimumHeight(130)
+        self.detail_paths.setMinimumHeight(112)
         layout.addWidget(self.detail_paths)
 
-        self.project_chip = QLabel("Projet public selectionne: aucun")
+        self.project_chip = QLabel("Projet public sélectionné: aucun")
         self.project_chip.setObjectName("ProjectChip")
         self.project_chip.setWordWrap(True)
         layout.addWidget(self.project_chip)
@@ -602,9 +608,10 @@ class MainWindow(QMainWindow):
         self.activity_log = AssistantTranscript()
         self.activity_log.setObjectName("ChatTranscript")
         self.activity_log.setReadOnly(True)
-        self.activity_log.setMinimumHeight(220)
+        self.activity_log.setMinimumHeight(120)
+        self.activity_log.setMaximumHeight(150)
         self.activity_log.projectDropped.connect(self.use_project_payload)
-        layout.addWidget(self.activity_log, stretch=1)
+        layout.addWidget(self.activity_log)
         self.chat_transcript = self.activity_log
 
         self.chat_input = QLineEdit()
@@ -616,15 +623,15 @@ class MainWindow(QMainWindow):
         actions = QFrame()
         actions.setObjectName("ActionsPanel")
         actions_layout = QVBoxLayout(actions)
-        actions_layout.setContentsMargins(12, 12, 12, 12)
-        actions_layout.setSpacing(8)
+        actions_layout.setContentsMargins(12, 10, 12, 10)
+        actions_layout.setSpacing(6)
         actions_title = QLabel("Atelier documentaire")
         actions_title.setObjectName("ActionTitle")
         actions_layout.addWidget(actions_title)
-        self.create_pack_button = QPushButton("Creer pack candidature")
+        self.create_pack_button = QPushButton("Créer pack")
         self.create_pack_button.setObjectName("PrimaryButton")
         self.create_pack_button.clicked.connect(self.create_selected_document_pack)
-        self.prepare_mail_button = QPushButton("Preparer le mail")
+        self.prepare_mail_button = QPushButton("Préparer le mail")
         self.prepare_mail_button.setObjectName("ActionButton")
         self.prepare_mail_button.clicked.connect(self.prepare_selected_mail)
         self.open_cv_button = QPushButton("Ouvrir CV")
@@ -645,19 +652,20 @@ class MainWindow(QMainWindow):
         for button in [
             self.create_pack_button,
             self.prepare_mail_button,
+            self.open_result_button,
+            self.open_target_button,
             self.open_cv_button,
             self.open_letter_button,
             self.open_mail_button,
-            self.open_target_button,
-            self.open_result_button,
         ]:
-            button.setMinimumHeight(36)
+            button.setMinimumHeight(32)
             actions_layout.addWidget(button)
         layout.addWidget(actions)
 
-        self.local_ai_status = QLabel("V1 sans IA: aucun modele local ne demarre")
+        self.local_ai_status = QLabel("V1 sans IA: aucun modèle local ne démarre")
         self.local_ai_status.setObjectName("AiStatus")
         self.local_ai_status.setWordWrap(True)
+        self.local_ai_status.setVisible(False)
         layout.addWidget(self.local_ai_status)
 
         return panel
@@ -689,6 +697,8 @@ class MainWindow(QMainWindow):
             self.update_detail_from_freelance_selection()
         elif view_name == "Tableau de bord":
             self.update_detail_from_selection()
+        else:
+            self._update_detail(None)
 
     def refresh(self) -> None:
         records = self.applications.list_all()
@@ -718,8 +728,10 @@ class MainWindow(QMainWindow):
             self.update_detail_from_jobs_selection()
         elif current_view == "Freelance":
             self.update_detail_from_freelance_selection()
-        else:
+        elif current_view == "Tableau de bord":
             self.update_detail_from_selection()
+        else:
+            self._update_detail(None)
 
     def _scan_documents(self) -> list[ScannedDocument]:
         scanner = DocumentScanner(
@@ -840,12 +852,15 @@ class MainWindow(QMainWindow):
         self.metric_freelance.set_value(str(freelance))
 
     def _update_source_status(self) -> None:
-        source = "pret" if self.bootstrap.document_source_ready else "documents manquants"
+        source = "prêt" if self.bootstrap.document_source_ready else "documents manquants"
+        source_dir = self.settings.document_source_dir
+        source_name = source_dir.name or str(source_dir)
         self.source_status.setText(
             f"Source: {source}\n"
-            f"Result: pret\n"
-            f"{self.settings.document_source_dir}"
+            f"Result: prêt\n"
+            f"{source_name}"
         )
+        self.source_status.setToolTip(str(source_dir))
 
     def _update_settings_form(self) -> None:
         self.settings_source_dir.setText(str(self.settings.document_source_dir))
@@ -854,17 +869,32 @@ class MainWindow(QMainWindow):
         self.settings_letter_path.setText(str(self.document_source.cover_letter_path))
         self.settings_github_owner_input.setText(self.settings.github_owner)
         self.settings_ai_mode_input.setText(
-            "Desactivee - V1 sans LLM" if not self.settings.local_ai_enabled else "Activee"
+            "Désactivée - V1 sans LLM" if not self.settings.local_ai_enabled else "Activée"
         )
         self.settings_ai_url_input.setText(self.settings.local_ai_base_url)
         self.github_owner_input.setText(self.settings.github_owner)
 
     def _update_ai_status(self) -> None:
-        self.local_ai_status.setText("V1 sans IA: aucun modele local ne demarre")
+        self.local_ai_status.setText("V1 sans IA: aucun modèle local ne démarre")
         self.chat_input.setEnabled(False)
         self.chat_send_button.setEnabled(False)
-        self.create_pack_button.setEnabled(True)
-        self.prepare_mail_button.setEnabled(True)
+
+    def _update_context_actions(self, record: ApplicationRecord | None) -> None:
+        has_record = record is not None
+        self.create_pack_button.setEnabled(has_record)
+        self.prepare_mail_button.setEnabled(has_record)
+        self.open_cv_button.setEnabled(
+            has_record and bool(record.cv_output_path or record.cv_path)
+        )
+        self.open_letter_button.setEnabled(
+            has_record
+            and bool(record.cover_letter_output_path or record.cover_letter_source_path)
+        )
+        self.open_mail_button.setEnabled(
+            has_record and self._mail_output_path_for_record(record).exists()
+        )
+        self.open_target_button.setEnabled(has_record)
+        self.open_result_button.setEnabled(True)
 
     def update_detail_from_selection(self) -> None:
         record = self._selected_record_from_table(self.table, self.current_records)
@@ -884,9 +914,10 @@ class MainWindow(QMainWindow):
 
     def _update_detail(self, record: ApplicationRecord | None) -> None:
         if record is None:
-            self.detail_title.setText("Aucune selection")
+            self.detail_title.setText("Aucune sélection")
             self.detail_meta.setText("")
             self.detail_paths.setPlainText("")
+            self._update_context_actions(None)
             self._render_chat()
             return
 
@@ -900,23 +931,24 @@ class MainWindow(QMainWindow):
             "\n".join(
                 [
                     "Etat du pack:",
-                    f"CV genere: {self._exists_label(record.cv_output_path)}",
+                    f"CV généré: {self._exists_label(record.cv_output_path)}",
                     f"Lettre / proposition: {self._exists_label(record.cover_letter_output_path)}",
                     f"Mail: {self._exists_label(self._mail_output_path_for_record(record))}",
                     f"PDF final: {'OK' if self._record_pdf_final_exists(record) else 'Absent'}",
                     "",
                     f"CV source:\n{record.cv_path}",
                     "",
-                    f"CV renomme:\n{record.cv_output_path or '-'}",
+                    f"CV renommé:\n{record.cv_output_path or '-'}",
                     "",
                     f"Lettre source:\n{record.cover_letter_source_path}",
                     "",
-                    f"Sortie prevue:\n{record.cover_letter_output_path or '-'}",
+                    f"Sortie prévue:\n{record.cover_letter_output_path or '-'}",
                     "",
                     f"Dossier:\n{record.export_dir or '-'}",
                 ]
             )
         )
+        self._update_context_actions(record)
         self._render_chat()
 
     def create_job_application(self) -> None:
@@ -951,7 +983,7 @@ class MainWindow(QMainWindow):
     ) -> None:
         record = self._selected_record_from_table(table, records)
         if record is None:
-            QMessageBox.information(self, "Selection", "Selectionne une ligne.")
+            QMessageBox.information(self, "Sélection", "Sélectionne une ligne.")
             return
         status = ApplicationStatus(combo.currentData())
         self.applications.update_status(record.id, status)
@@ -960,13 +992,13 @@ class MainWindow(QMainWindow):
     def delete_selected_record(self, table: QTableWidget, records: list[ApplicationRecord]) -> None:
         record = self._selected_record_from_table(table, records)
         if record is None:
-            QMessageBox.information(self, "Selection", "Selectionne une ligne.")
+            QMessageBox.information(self, "Sélection", "Sélectionne une ligne.")
             return
         target_name, role = self._target_for_record(record)
         answer = QMessageBox.question(
             self,
             "Supprimer",
-            f"Supprimer l'entree {target_name} - {role} ?",
+            f"Supprimer l'entrée {target_name} - {role} ?",
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
@@ -987,7 +1019,7 @@ class MainWindow(QMainWindow):
     def set_selected_document(self, role: str) -> None:
         document = self._selected_document()
         if document is None:
-            QMessageBox.information(self, "Selection", "Selectionne un document.")
+            QMessageBox.information(self, "Sélection", "Sélectionne un document.")
             return
         if role == "cv":
             updated = self.settings_manager.update_selected_documents(
@@ -1004,7 +1036,7 @@ class MainWindow(QMainWindow):
     def open_selected_document(self) -> None:
         document = self._selected_document()
         if document is None:
-            QMessageBox.information(self, "Selection", "Selectionne un document.")
+            QMessageBox.information(self, "Sélection", "Sélectionne un document.")
             return
         self._safe_open_path(document.path, "open_document")
 
@@ -1015,14 +1047,14 @@ class MainWindow(QMainWindow):
     def open_selected_generated_cv(self) -> None:
         record = self._selected_visible_record()
         if record is None:
-            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            QMessageBox.information(self, "Sélection", "Sélectionne une candidature ou une mission.")
             return
         self._open_existing_path(record.cv_output_path or record.cv_path, "CV")
 
     def open_selected_generated_letter(self) -> None:
         record = self._selected_visible_record()
         if record is None:
-            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            QMessageBox.information(self, "Sélection", "Sélectionne une candidature ou une mission.")
             return
         self._open_existing_path(
             record.cover_letter_output_path or record.cover_letter_source_path,
@@ -1032,7 +1064,7 @@ class MainWindow(QMainWindow):
     def open_selected_mail_file(self) -> None:
         record = self._selected_visible_record()
         if record is None:
-            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            QMessageBox.information(self, "Sélection", "Sélectionne une candidature ou une mission.")
             return
         mail_path = self._mail_output_path_for_record(record)
         self._open_existing_path(str(mail_path), "Mail")
@@ -1045,7 +1077,7 @@ class MainWindow(QMainWindow):
     def restore_selected_trash_entry(self) -> None:
         entry = self._selected_trash_entry()
         if entry is None:
-            QMessageBox.information(self, "Selection", "Selectionne un fichier en pre-suppression.")
+            QMessageBox.information(self, "Sélection", "Sélectionne un fichier en pré-suppression.")
             return
         try:
             restored_path = self.trash_service.restore(
@@ -1056,18 +1088,18 @@ class MainWindow(QMainWindow):
             self.user_logger.error("restore_trash_entry", exc, context=entry.entry_id)
             QMessageBox.warning(self, "Restauration impossible", str(exc))
             return
-        QMessageBox.information(self, "Fichier restaure", f"Restaure dans:\n{restored_path}")
+        QMessageBox.information(self, "Fichier restauré", f"Restauré dans:\n{restored_path}")
         self.refresh()
 
     def delete_selected_trash_entry(self) -> None:
         entry = self._selected_trash_entry()
         if entry is None:
-            QMessageBox.information(self, "Selection", "Selectionne un fichier en pre-suppression.")
+            QMessageBox.information(self, "Sélection", "Sélectionne un fichier en pré-suppression.")
             return
         answer = QMessageBox.question(
             self,
-            "Suppression definitive",
-            f"Supprimer definitivement {entry.original_path.name} ?",
+            "Suppression définitive",
+            f"Supprimer définitivement {entry.original_path.name} ?",
         )
         if answer != QMessageBox.StandardButton.Yes:
             return
@@ -1080,7 +1112,7 @@ class MainWindow(QMainWindow):
             self.user_logger.error("delete_trash_entry", exc, context=entry.entry_id)
             QMessageBox.warning(self, "Suppression impossible", str(exc))
             return
-        QMessageBox.information(self, "Suppression", "Fichier supprime definitivement.")
+        QMessageBox.information(self, "Suppression", "Fichier supprimé définitivement.")
         self.refresh()
 
     def duplicate_selected_document_for_edit(self) -> None:
@@ -1098,7 +1130,7 @@ class MainWindow(QMainWindow):
 
         document = self._selected_document()
         if document is None:
-            QMessageBox.information(self, "Selection", "Selectionne un document.")
+            QMessageBox.information(self, "Sélection", "Sélectionne un document.")
             return
         if document.path.suffix.lower() not in {".docx", ".pdf"}:
             QMessageBox.warning(
@@ -1123,7 +1155,7 @@ class MainWindow(QMainWindow):
             return
 
         self.current_edit_session = session
-        self._append_chat_message("system", f"Copie de travail creee:\n{session.working_copy_path}")
+        self._append_chat_message("system", f"Copie de travail créée:\n{session.working_copy_path}")
         try:
             self._safe_open_path(session.working_copy_path, "open_working_copy")
         except OSError:
@@ -1140,21 +1172,21 @@ class MainWindow(QMainWindow):
         if session.status == DocumentEditSessionStatus.KEPT:
             QMessageBox.information(
                 self,
-                "Modification finalisee",
-                f"Copie conservee dans:\n{session.working_copy_path}",
+                "Modification finalisée",
+                f"Copie conservée dans:\n{session.working_copy_path}",
             )
         elif session.status == DocumentEditSessionStatus.UNCHANGED_DELETED:
             QMessageBox.information(
                 self,
                 "Aucune modification",
-                "La copie etait inchangee et a ete placee en pre-suppression.",
+                "La copie était inchangée et a été placée en pré-suppression.",
             )
         elif session.status == DocumentEditSessionStatus.DELETED:
-            QMessageBox.information(self, "Session", "La copie de travail n'existe deja plus.")
+            QMessageBox.information(self, "Session", "La copie de travail n'existe déjà plus.")
         else:
             QMessageBox.warning(
                 self,
-                "Fichier verrouille",
+                "Fichier verrouillé",
                 "Ferme Word ou le lecteur PDF, puis relance la finalisation.",
             )
         self.refresh()
@@ -1169,14 +1201,14 @@ class MainWindow(QMainWindow):
         if session.status == DocumentEditSessionStatus.BLOCKED:
             QMessageBox.warning(
                 self,
-                "Fichier verrouille",
+                "Fichier verrouillé",
                 "Ferme Word ou le lecteur PDF, puis relance l'annulation.",
             )
         else:
             QMessageBox.information(
                 self,
-                "Session annulee",
-                "La copie de travail a ete placee en pre-suppression.",
+                "Session annulée",
+                "La copie de travail a été placée en pré-suppression.",
             )
         self.refresh()
 
@@ -1201,23 +1233,23 @@ class MainWindow(QMainWindow):
     def convert_selected_to_pdf(self) -> None:
         document = self._selected_document()
         if document is None:
-            QMessageBox.information(self, "Selection", "Selectionne un document.")
+            QMessageBox.information(self, "Sélection", "Sélectionne un document.")
             return
         extension = document.path.suffix.lower()
         if extension == ".docx":
             source_format = DocumentFormat.DOCX
         else:
-            QMessageBox.warning(self, "Conversion", "Selectionne un DOCX.")
+            QMessageBox.warning(self, "Conversion", "Sélectionne un DOCX.")
             return
         self._convert_document(document, source_format, DocumentFormat.PDF)
 
     def convert_selected_pdf(self, target_format: DocumentFormat) -> None:
         document = self._selected_document()
         if document is None:
-            QMessageBox.information(self, "Selection", "Selectionne un document.")
+            QMessageBox.information(self, "Sélection", "Sélectionne un document.")
             return
         if document.path.suffix.lower() != ".pdf":
-            QMessageBox.warning(self, "Conversion", "Selectionne un PDF.")
+            QMessageBox.warning(self, "Conversion", "Sélectionne un PDF.")
             return
         self._convert_document(document, DocumentFormat.PDF, target_format)
 
@@ -1298,32 +1330,32 @@ class MainWindow(QMainWindow):
     def copy_selected_project_name(self) -> None:
         project = self._selected_project_from_table()
         if project is None:
-            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            QMessageBox.information(self, "Projet public", "Sélectionne un projet.")
             return
         QApplication.clipboard().setText(project.repository_name)
-        self._append_chat_message("system", f"Nom copie: {project.repository_name}")
+        self._append_chat_message("system", f"Nom copié: {project.repository_name}")
 
     def copy_selected_project_url(self) -> None:
         project = self._selected_project_from_table()
         if project is None:
-            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            QMessageBox.information(self, "Projet public", "Sélectionne un projet.")
             return
         QApplication.clipboard().setText(project.url)
-        self._append_chat_message("system", f"URL copiee: {project.url}")
+        self._append_chat_message("system", f"URL copiée: {project.url}")
 
     def copy_selected_project_hyperlink(self) -> None:
         project = self._selected_project_from_table()
         if project is None:
-            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            QMessageBox.information(self, "Projet public", "Sélectionne un projet.")
             return
         payload = self.project_clipboard.build_payload(project)
         self._copy_project_payload_to_clipboard(payload.plain_text, payload.html)
-        self._append_chat_message("system", f"Hyperlien Word copie: {project.repository_name}")
+        self._append_chat_message("system", f"Hyperlien Word copié: {project.repository_name}")
 
     def open_selected_project(self) -> None:
         project = self._selected_project_from_table()
         if project is None:
-            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            QMessageBox.information(self, "Projet public", "Sélectionne un projet.")
             return
         if not project.url:
             QMessageBox.warning(self, "Projet public", "Ce projet n'a pas d'URL.")
@@ -1331,7 +1363,7 @@ class MainWindow(QMainWindow):
         self._open_url(project.url)
 
     def send_chat_message(self) -> None:
-        self.local_ai_status.setText("V1 sans IA: aucun modele local ne demarre")
+        self.local_ai_status.setText("V1 sans IA: aucun modèle local ne démarre")
 
     def insert_selected_project_from_table(self) -> None:
         selected = (
@@ -1340,7 +1372,7 @@ class MainWindow(QMainWindow):
             else []
         )
         if not selected:
-            QMessageBox.information(self, "Projet public", "Selectionne un projet.")
+            QMessageBox.information(self, "Projet public", "Sélectionne un projet.")
             return
         item = self.projects_table.item(selected[0].row(), 0)
         if item is None:
@@ -1358,24 +1390,24 @@ class MainWindow(QMainWindow):
             QMessageBox.warning(self, "Projet public", "Projet introuvable dans le cache.")
             return
         self.selected_projects[self._chat_key()] = project
-        self._append_chat_message("system", f"Projet public selectionne: {project.repository_name}")
+        self._append_chat_message("system", f"Projet public sélectionné: {project.repository_name}")
         self._render_chat()
 
     def adapt_selected_text(self) -> None:
         record = self._selected_visible_record()
         if record is None:
-            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            QMessageBox.information(self, "Sélection", "Sélectionne une candidature ou une mission.")
             return
         QMessageBox.information(
             self,
-            "IA desactivee",
-            "L'adaptation automatique de lettre est desactivee pour la V1 sans LLM.",
+            "IA désactivée",
+            "L'adaptation automatique de lettre est désactivée pour la V1 sans LLM.",
         )
 
     def create_selected_document_pack(self) -> None:
         record = self._selected_visible_record()
         if record is None:
-            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            QMessageBox.information(self, "Sélection", "Sélectionne une candidature ou une mission.")
             return
 
         target_name, role = self._target_for_record(record)
@@ -1427,21 +1459,21 @@ class MainWindow(QMainWindow):
             "system",
             "\n".join(
                 [
-                    "Pack documentaire pret:",
+                    "Pack documentaire prêt:",
                     str(cv_path),
                     str(letter_path),
                     str(mail_path),
                 ]
             ),
         )
-        QMessageBox.information(self, "Pack cree", f"Pack pret dans:\n{target_folder}")
+        QMessageBox.information(self, "Pack créé", f"Pack prêt dans:\n{target_folder}")
         self._safe_open_path(target_folder, "open_pack_folder")
         self.refresh()
 
     def prepare_selected_mail(self) -> None:
         record = self._selected_visible_record()
         if record is None:
-            QMessageBox.information(self, "Selection", "Selectionne une candidature ou une mission.")
+            QMessageBox.information(self, "Sélection", "Sélectionne une candidature ou une mission.")
             return
 
         target_name, role = self._target_for_record(record)
@@ -1458,13 +1490,13 @@ class MainWindow(QMainWindow):
             content=content,
         )
         PreviewDialog(
-            title="Mail prepare",
+            title="Mail préparé",
             heading=draft.subject,
             body=draft.body,
             output_path=output,
             parent=self,
         ).exec()
-        self._append_chat_message("assistant", f"Mail prepare:\nObjet: {draft.subject}\n\n{draft.body}")
+        self._append_chat_message("assistant", f"Mail préparé:\nObjet: {draft.subject}\n\n{draft.body}")
 
     def _ensure_pack_document(
         self,
@@ -1555,7 +1587,7 @@ class MainWindow(QMainWindow):
         return path
 
     def _ensure_ai_ready(self) -> bool:
-        self.local_ai_status.setText("V1 sans IA: aucun modele local ne demarre")
+        self.local_ai_status.setText("V1 sans IA: aucun modèle local ne démarre")
         return False
 
     def _schedule_ai_idle_stop(self) -> None:
@@ -1587,9 +1619,9 @@ class MainWindow(QMainWindow):
         key = self._chat_key()
         project = self.selected_projects.get(key)
         if project is None:
-            self.project_chip.setText("Projet public selectionne: aucun")
+            self.project_chip.setText("Projet public sélectionné: aucun")
         else:
-            self.project_chip.setText(f"Projet public selectionne: {project.repository_name}")
+            self.project_chip.setText(f"Projet public sélectionné: {project.repository_name}")
 
         lines: list[str] = []
         for role, text in self.chat_histories.get(key, []):
@@ -1600,7 +1632,7 @@ class MainWindow(QMainWindow):
             }.get(role, role)
             lines.append(f"{label}\n{text}")
         if not lines:
-            lines.append("Auto-CV\nAtelier pret. Les actions locales sont disponibles.")
+            lines.append("Auto-CV\nAtelier prêt. Les actions locales sont disponibles.")
         self.chat_transcript.setPlainText("\n\n".join(lines))
         self.chat_transcript.moveCursor(QTextCursor.MoveOperation.End)
 
@@ -1686,9 +1718,9 @@ class MainWindow(QMainWindow):
 
     def _trash_reason_label(self, entry: TrashEntry) -> str:
         labels = {
-            "canceled_edit": "Modification annulee",
-            "unchanged_edit": "Copie inchangee",
-            "obsolete": "Obsolete",
+            "canceled_edit": "Modification annulée",
+            "unchanged_edit": "Copie inchangée",
+            "obsolete": "Obsolète",
         }
         return labels.get(entry.reason.value, entry.reason.value)
 
@@ -1970,6 +2002,29 @@ class MainWindow(QMainWindow):
                 padding: 8px;
                 border-bottom: 1px solid #172940;
             }
+            #DetailScroll {
+                background: #081321;
+                border: none;
+            }
+            QScrollArea {
+                border: none;
+            }
+            QScrollBar:vertical {
+                background: #081321;
+                width: 10px;
+                margin: 0;
+            }
+            QScrollBar::handle:vertical {
+                background: #203653;
+                border-radius: 4px;
+                min-height: 28px;
+            }
+            QScrollBar::add-line:vertical,
+            QScrollBar::sub-line:vertical {
+                height: 0;
+                border: none;
+                background: transparent;
+            }
             #DetailPanel {
                 background: #081321;
                 border-left: 1px solid #203653;
@@ -2045,6 +2100,14 @@ class MainWindow(QMainWindow):
             }
             #DangerButton:hover {
                 background: #451a2b;
+            }
+            #PrimaryButton:disabled,
+            #SecondaryButton:disabled,
+            #ActionButton:disabled,
+            #DangerButton:disabled {
+                background: #081321;
+                color: #647b96;
+                border: 1px solid #1d304a;
             }
             #AiStatus {
                 color: #93a9c4;

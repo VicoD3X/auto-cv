@@ -4,7 +4,7 @@
 
 - Parked the previous local AI integration path on `vicod3x/ai-parking` for later reactivation.
 - Added safe document edit sessions: duplicate DOCX/PDF files into `Result`, open the copy, finalize, or cancel without touching source files.
-- Added a `Pre-suppression` view backed by `Result/_PreSuppression` to restore or permanently delete canceled/unchanged work copies, with automatic purge after 30 days.
+- Added a `Pré-suppression` view backed by `Result/_PreSuppression` to restore or permanently delete canceled/unchanged work copies, with automatic purge after 30 days.
 - Added per-target result folders using `Result/<Target>_<RoleOrMission>_<Date>/`.
 - Added a simple document pack action for applications and freelance opportunities.
 - Recentered the V1 UI on deterministic document preparation, local copies, local conversion, and manual validation.

@@ -49,7 +49,7 @@ Workflow de modification :
 
 ```text
 Document source
-  -> Dupliquer & ouvrir
+  -> Dupliquer et ouvrir
   -> copie de travail dans le dossier cible
   -> modification dans Word ou le lecteur PDF
   -> Finaliser ou Annuler
@@ -57,16 +57,16 @@ Document source
 
 Regles :
 
-- `Dupliquer & ouvrir` cree une copie de travail DOCX ou PDF dans le dossier cible ;
+- `Dupliquer et ouvrir` cree une copie de travail DOCX ou PDF dans le dossier cible ;
 - `Finaliser` conserve la copie seulement si son contenu a change ;
-- `Finaliser` place une copie inchangee en pre-suppression ;
-- `Annuler` place la copie de travail en pre-suppression ;
-- l'onglet `Pre-suppression` permet de restaurer ou supprimer definitivement ces copies ;
+- `Finaliser` place une copie inchangee en pré-suppression ;
+- `Annuler` place la copie de travail en pré-suppression ;
+- l'onglet `Pré-suppression` permet de restaurer ou supprimer definitivement ces copies ;
 - toute entree non restauree est supprimee automatiquement apres 30 jours ;
 - si Word ou le lecteur PDF verrouille le fichier, Auto-CV demande de fermer le document ;
 - la source reste strictement intacte.
 
-La zone de pre-suppression vit dans :
+La zone de pré-suppression vit dans :
 
 ```text
 Result/_PreSuppression

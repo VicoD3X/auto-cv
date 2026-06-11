@@ -36,25 +36,32 @@ def test_main_window_can_be_created_offscreen(tmp_path, monkeypatch) -> None:
     assert window.table.columnCount() == 7
     assert window.stack.count() == 7
     assert window.chat_input.isVisible() is False
-    assert "Atelier pret" in window.activity_log.toPlainText()
+    assert "Atelier prêt" in window.activity_log.toPlainText()
+    assert window.create_pack_button.isEnabled() is False
+    assert window.prepare_mail_button.isEnabled() is False
+    assert window.open_cv_button.isEnabled() is False
+    assert window.open_letter_button.isEnabled() is False
+    assert window.open_mail_button.isEnabled() is False
+    assert window.open_target_button.isEnabled() is False
+    assert window.open_result_button.isEnabled() is True
     window.show_view("Documents")
     assert window.documents_table.rowCount() == 2
-    assert window.duplicate_document_button.text() == "Dupliquer & ouvrir"
+    assert window.duplicate_document_button.text() == "Dupliquer et ouvrir"
     assert window.finalize_document_button.text() == "Finaliser modification"
     assert window.cancel_document_button.text() == "Annuler et supprimer"
     assert window.open_target_folder_button.text() == "Ouvrir dossier cible"
-    window.show_view("Pre-suppression")
+    window.show_view("Pré-suppression")
     assert window.trash_table.columnCount() == 7
     assert window.restore_trash_button.text() == "Restaurer"
-    assert window.delete_trash_button.text() == "Supprimer definitivement"
+    assert window.delete_trash_button.text() == "Supprimer définitivement"
     window.show_view("Projets publics")
     assert window.projects_table.columnCount() == 6
     assert window.copy_project_name_button.text() == "Copier nom"
     assert window.copy_project_url_button.text() == "Copier URL"
     assert window.copy_project_link_button.text() == "Copier hyperlien Word"
     assert window.open_project_button.text() == "Ouvrir projet"
-    window.show_view("Parametres")
-    assert window.stack.currentIndex() == window.view_indexes["Parametres"]
+    window.show_view("Paramètres")
+    assert window.stack.currentIndex() == window.view_indexes["Paramètres"]
     assert window.bootstrap.document_source_ready is True
 
     window.close()
@@ -126,8 +133,8 @@ def test_main_window_uses_public_project_library_actions(tmp_path, monkeypatch) 
     window.use_project_payload(_project_payload(project))
 
     assert window.selected_projects["__global__"] == project
-    assert "Projet public selectionne: spark-vision" in window.project_chip.text()
-    assert "Projet public selectionne: spark-vision" in window.activity_log.toPlainText()
+    assert "Projet public sélectionné: spark-vision" in window.project_chip.text()
+    assert "Projet public sélectionné: spark-vision" in window.activity_log.toPlainText()
 
     window.close()
     app.processEvents()
@@ -301,7 +308,7 @@ def test_main_window_document_edit_session_deletes_unchanged_copy(tmp_path, monk
     assert window.trash_entries[0].trash_path.exists()
     assert letter_source.read_text(encoding="utf-8") == "Lettre"
 
-    window.show_view("Pre-suppression")
+    window.show_view("Pré-suppression")
     window.trash_table.selectRow(0)
     window.restore_selected_trash_entry()
 
@@ -395,6 +402,16 @@ def test_main_window_creates_document_pack_without_ai(tmp_path, monkeypatch) -> 
     monkeypatch.setattr(window, "_open_path", lambda path: opened.append(Path(path)))
     draft = window.service.create_job_application(company="Airbus", title="Data Scientist")
     window.refresh()
+    window.show_view("Candidatures")
+    window.jobs_table.selectRow(0)
+    assert window.create_pack_button.isEnabled() is True
+    assert window.open_result_button.isEnabled() is True
+
+    window.show_view("Documents")
+    assert window.create_pack_button.isEnabled() is False
+    assert window.prepare_mail_button.isEnabled() is False
+    assert window.open_result_button.isEnabled() is True
+
     window.show_view("Candidatures")
     window.jobs_table.selectRow(0)
 
